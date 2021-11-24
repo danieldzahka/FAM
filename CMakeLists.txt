@@ -62,18 +62,18 @@ if(ENABLE_CONAN)
   run_conan()
 endif()
 
-if(ENABLE_TESTING)
-  enable_testing()
-  message("Building Tests. Be sure to check out test/constexpr_tests for constexpr testing")
-  add_subdirectory(test)
-endif()
-
 if(ENABLE_FUZZING)
   message("Building Fuzz Tests, using fuzzing sanitizer https://www.llvm.org/docs/LibFuzzer.html")
   add_subdirectory(fuzz_test)
 endif()
 
 add_subdirectory(src)
+
+if(ENABLE_TESTING)
+  enable_testing()
+  message("Building Tests. Be sure to check out test/constexpr_tests for constexpr testing")
+  add_subdirectory(test)
+endif()
 
 option(ENABLE_UNITY "Enable Unity builds of projects" OFF)
 if(ENABLE_UNITY)

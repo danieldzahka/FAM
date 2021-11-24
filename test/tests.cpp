@@ -1,14 +1,47 @@
 #include <catch2/catch.hpp>
+#include <FAM.hpp>
 
-unsigned int Factorial(unsigned int number)// NOLINT(misc-no-recursion)
+#include <string>
+
+namespace {
+const std::string host = "host";
+const std::string port = "80";
+}// namespace
+
+TEST_CASE("Testing RPC Consruction", "[RPC]")
 {
-  return number <= 1 ? number : Factorial(number - 1) * number;
+  using namespace FAM::client;
+  REQUIRE_NOTHROW(RPC_client{ host, port });
 }
 
-TEST_CASE("Factorials are computed", "[factorial]")
+TEST_CASE("Testing RPC Layer", "[RPC]")
 {
-  REQUIRE(Factorial(1) == 1);
-  REQUIRE(Factorial(2) == 2);
-  REQUIRE(Factorial(3) == 6);
-  REQUIRE(Factorial(10) == 3628800);
+  using namespace FAM;
+  using namespace client;
+
+  RPC_client client{ host, port };
+
+  SECTION("Message: ping")
+  {
+    auto const response = client.ping();
+    REQUIRE(response.status == response::status::OK);
+  }
+
+  SECTION("Message: allocate_region")
+  {
+    auto const response = client.allocate_region();
+    REQUIRE(response.status == response::status::OK);
+  }
+
+  SECTION("Message: mmap_file")
+  {
+    auto const response = client.mmap_file();
+    REQUIRE(response.status == response::status::OK);
+  }
+
+  SECTION("Message: create_QP")
+  {
+    auto const response = client.create_QP();
+    REQUIRE(response.status == response::status::OK);
+  }
 }
