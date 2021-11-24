@@ -79,8 +79,7 @@ namespace client {
     response::mmap_file mmap_file();
     response::create_QP create_QP();
   };
-
-
+  
   void create_session();// factory that tries to do all connection work, then
                         // returns an object containing all communication
                         // resources, both beast and IB. The objects destructor
@@ -91,7 +90,8 @@ namespace server {
   class RPC_session
   {
   };
-  void run();// throw exception if something bad happens
+  void run(std::string const &host,
+    std::string const &port);// throw exception if something bad happens
 }// namespace server
 }// namespace FAM
 

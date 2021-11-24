@@ -4,8 +4,8 @@
 #include <string>
 
 namespace {
-const std::string host = "host";
-const std::string port = "80";
+const std::string host = "0.0.0.0";
+const std::string port = "8080";
 }// namespace
 
 TEST_CASE("Testing RPC Consruction", "[RPC]")
