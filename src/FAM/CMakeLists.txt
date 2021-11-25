@@ -9,5 +9,6 @@ target_link_libraries(
           project_warnings
           fmt::fmt
           spdlog::spdlog
+          Boost::json
   PUBLIC Boost::boost)
 target_include_directories(FAM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

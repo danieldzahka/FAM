@@ -42,7 +42,7 @@ void do_session(tcp::socket socket)
       // Echo the message back
       ws.text(ws.got_text());
       ws.write(buffer.data());
-      std::cout << "got message\n";
+      std::cout << beast::make_printable(buffer.data()) << std::endl;
     }
   } catch (beast::system_error const &se) {
     // This indicates that the session was closed

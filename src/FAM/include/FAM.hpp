@@ -74,6 +74,7 @@ namespace client {
 
   public:
     RPC_client(std::string host, std::string port);
+    ~RPC_client();
     response::ping ping();
     response::allocate_region allocate_region();
     response::mmap_file mmap_file();
