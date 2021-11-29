@@ -6,7 +6,6 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
-#include <vector>
 #include <string>
 
 namespace FAM {
@@ -19,53 +18,76 @@ using tcp = boost::asio::ip::tcp;// from <boost/asio/ip/tcp.hpp>
 struct QP
 {
 };// qp owner
+namespace response {
+  enum class status {
+    OK,
+    FAIL,
+  };
 
+  struct ping
+  {
+  };
+
+  struct allocate_region
+  {
+    std::uint64_t const addr;
+    std::uint32_t const length;
+    allocate_region(std::uint64_t t_addr, std::uint32_t t_length)
+      : addr{ t_addr }, length {t_length}
+    {}
+  };
+
+  struct mmap_file
+  {
+    std::uint64_t const addr;
+    std::uint64_t const edges;
+    std::uint32_t const verts;
+    mmap_file(
+      std::uint64_t t_addr,
+      std::uint64_t t_edges,
+      std::uint32_t t_verts)
+      : addr{ t_addr }, edges{ t_edges }, verts{ t_verts }
+    {}
+  };
+
+  struct create_QP
+  {
+  };
+}// namespace response
+
+namespace request {
+  enum class type {
+    PING,
+    ALLOCATE_REGION,
+    MMAP_FILE,
+    CREATE_QP,
+  };
+  
+  struct ping
+  {
+    using response_type = FAM::response::ping;
+  };
+
+  struct allocate_region
+  {
+    using response_type = FAM::response::allocate_region;
+    std::uint64_t size;
+  };
+
+  struct mmap_file
+  {
+    using response_type = FAM::response::mmap_file;
+    std::string fname;
+    mmap_file(std::string const &t_fname) : fname{ t_fname } {}
+  };
+
+  struct create_QP
+  {
+    using response_type = FAM::response::create_QP;
+  };
+}// namespace request
 
 namespace client {
-  namespace response {
-    enum class status {
-      OK,
-      FAIL,
-    };
-
-    struct ping
-    {
-      FAM::client::response::status const status;
-      ping(FAM::client::response::status t_status) : status{ t_status } {}
-    };
-
-    struct allocate_region
-    {
-      FAM::client::response::status const status;
-      std::uint64_t const addr;
-      allocate_region(FAM::client::response::status t_status,
-        std::uint64_t t_addr)
-        : status{ t_status }, addr{ t_addr }
-      {}
-    };
-
-    struct mmap_file
-    {
-      FAM::client::response::status const status;
-      std::uint64_t const addr;
-      std::uint64_t const edges;
-      std::uint32_t const verts;
-      mmap_file(FAM::client::response::status t_status,
-        std::uint64_t t_addr,
-        std::uint64_t t_edges,
-        std::uint32_t t_verts)
-        : status{ t_status }, addr{ t_addr }, edges{ t_edges }, verts{ t_verts }
-      {}
-    };
-
-    struct create_QP
-    {
-      FAM::client::response::status const status;
-      create_QP(FAM::client::response::status t_status) : status{ t_status } {}
-    };
-
-  }// namespace response
-
   class RPC_client
   {
     net::io_context ioc;
@@ -80,7 +102,7 @@ namespace client {
     response::mmap_file mmap_file();
     response::create_QP create_QP();
   };
-  
+
   void create_session();// factory that tries to do all connection work, then
                         // returns an object containing all communication
                         // resources, both beast and IB. The objects destructor
