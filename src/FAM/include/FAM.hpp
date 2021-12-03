@@ -31,8 +31,8 @@ namespace response {
   struct allocate_region
   {
     std::uint64_t const addr;
-    std::uint32_t const length;
-    allocate_region(std::uint64_t t_addr, std::uint32_t t_length)
+    std::uint64_t const length;
+    allocate_region(std::uint64_t t_addr, std::uint64_t t_length)
       : addr{ t_addr }, length {t_length}
     {}
   };
@@ -98,7 +98,7 @@ namespace client {
     RPC_client(std::string host, std::string port);
     ~RPC_client();
     response::ping ping();
-    response::allocate_region allocate_region();
+    response::allocate_region allocate_region(request::allocate_region const req);
     response::mmap_file mmap_file();
     response::create_QP create_QP();
   };

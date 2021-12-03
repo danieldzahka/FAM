@@ -7,8 +7,13 @@ add_library(catch_main STATIC catch_main.cpp)
 target_link_libraries(catch_main PUBLIC Catch2::Catch2)
 target_link_libraries(catch_main PRIVATE project_options)
 
+set(MEMADDR "130.207.122.215" CACHE STRING "IP of Memserver Ethernet Interface")
+set(PORT "8080" CACHE STRING "Ethernet portnum")
+configure_file("constants.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/constants.hpp")
+
 add_executable(tests tests.cpp)
 target_link_libraries(tests PRIVATE project_warnings project_options catch_main FAM)
+target_include_directories(tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # automatically discover tests that are defined in catch based test files you can modify the unittests. Set TEST_PREFIX
 # to whatever you want, or use different for different binaries

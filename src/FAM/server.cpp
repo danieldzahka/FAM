@@ -35,11 +35,12 @@ auto handle(FAM::request::ping const)
   return boost::json::value{ { "status", "OK" },
     { "response", boost::json::value_from(ping{}) } };
 }
-auto handle(FAM::request::allocate_region const)
+auto handle(FAM::request::allocate_region const req)
 {
   using namespace FAM::response;
-  throw std::runtime_error("not implemented");
-  return boost::json::value_from(ping{});
+  auto const length = req.size;
+  return boost::json::value{ { "status", "OK" },
+    { "response", boost::json::value_from(allocate_region{ 69, length }) } };
 }
 auto handle(FAM::request::mmap_file const)
 {
@@ -85,9 +86,10 @@ namespace request {
   }
 
   auto tag_invoke(boost::json::value_to_tag<allocate_region>,
-    boost::json::value const &)
+    boost::json::value const &v)
   {
-    return allocate_region{};
+    using namespace boost::json;
+    return allocate_region{ value_to<std::uint64_t>(v.at("size")) };
   }
 
   auto tag_invoke(boost::json::value_to_tag<mmap_file>,
@@ -109,6 +111,14 @@ namespace response {
   {
     jv = {};
   }
+
+  void tag_invoke(boost::json::value_from_tag,
+    boost::json::value &jv,
+    allocate_region const &resp)
+  {
+    jv = { { "addr", resp.addr }, { "length", resp.length } };
+  }
+
 }// namespace response
 }// namespace FAM
 

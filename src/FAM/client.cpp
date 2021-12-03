@@ -54,6 +54,14 @@ namespace request {
   {
     jv = {};
   }
+
+  void tag_invoke(boost::json::value_from_tag,
+    boost::json::value &jv,
+    allocate_region const &req)
+  {
+    jv = {{"size", req.size}};
+  }
+
 }// namespace request
 namespace response {
   // json -> struct conversions
@@ -67,7 +75,7 @@ namespace response {
     using namespace boost::json;
     auto const &obj = jv.as_object();
     return allocate_region{ value_to<std::uint64_t>(obj.at("addr")),
-      value_to<std::uint32_t>(obj.at("length")) };
+      value_to<std::uint64_t>(obj.at("length")) };
   }
 }// namespace response
 }// namespace FAM
@@ -121,9 +129,9 @@ FAM::response::ping RPC_client::ping()
 {
   return make_rpc(this->ws, FAM::request::ping{}, FAM::request::type::PING);
 }
-FAM::response::allocate_region RPC_client::allocate_region()
+FAM::response::allocate_region RPC_client::allocate_region(FAM::request::allocate_region const req)
 {
-  throw std::runtime_error("Not yet implemented");
+  return make_rpc(this->ws, req, FAM::request::type::ALLOCATE_REGION);
 }
 FAM::response::mmap_file RPC_client::mmap_file()
 {
