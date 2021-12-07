@@ -9,41 +9,41 @@ const std::string host = MEMADDR;
 const std::string port = PORT;
 }// namespace
 
-// TEST_CASE("RPC Consruction", "[RPC]")
-// {
-//   using namespace FAM::client;
-//   REQUIRE_NOTHROW(RPC_client{ host, port });
-// }
+TEST_CASE("RPC Consruction", "[RPC]")
+{
+  using namespace FAM::client;
+  REQUIRE_NOTHROW(RPC_client{ host, port });
+}
 
-// TEST_CASE("RPC PING", "[RPC]")
-// {
-//   using namespace FAM;
-//   using namespace client;
+TEST_CASE("RPC PING", "[RPC]")
+{
+  using namespace FAM;
+  using namespace client;
 
-//   RPC_client client{ host, port };
+  RPC_client client{ host, port };
 
-//   SECTION("Message: ping") { REQUIRE_NOTHROW(client.ping()); }
-// }
+  SECTION("Message: ping") { REQUIRE_NOTHROW(client.ping()); }
+}
 
-// TEST_CASE("RPC Allocate Region", "[RPC]")
-// {
-//   using namespace FAM;
-//   using namespace client;
+TEST_CASE("RPC Allocate Region", "[RPC]")
+{
+  using namespace FAM;
+  using namespace client;
 
-//   RPC_client client{ host, port };
+  RPC_client client{ host, port };
 
-//   SECTION("Message: allocate_region")
-//   {
-//     std::uint64_t const length = 117;
-//     auto const response =
-//       client.allocate_region(request::allocate_region{ length });
-//     REQUIRE(response.length == length);
-//   }
-// }
+  SECTION("Message: allocate_region")
+  {
+    std::uint64_t const length = 117;
+    auto const response =
+      client.allocate_region(request::allocate_region{ length });
+    REQUIRE(response.length == length);
+  }
+}
 
 TEST_CASE("RDMA client consruction", "[RDMA]")
 {
-  const std::string rdma_host = "192.168.12.1";
+  const std::string rdma_host = "192.168.12.2";
   const std::string rdma_port = "35287";
 
   REQUIRE_NOTHROW(FAM::RDMA::client{ rdma_host, rdma_port });
@@ -51,7 +51,7 @@ TEST_CASE("RDMA client consruction", "[RDMA]")
 
 TEST_CASE("RDMA client connection", "[RDMA]")
 {
-  const std::string rdma_host = "192.168.12.1";
+  const std::string rdma_host = "192.168.12.2";
   const std::string rdma_port = "35287";
 
   FAM::RDMA::client client{ rdma_host, rdma_port };

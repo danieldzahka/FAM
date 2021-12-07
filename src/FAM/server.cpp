@@ -187,7 +187,6 @@ void rdma_server(rdma_event_channel *const ec)
     } else if (event_copy.event == RDMA_CM_EVENT_DISCONNECTED) {// Runs on both
       spdlog::debug("RDMA_CM_EVENT_DISCONNECTED");
       rdma_disconnect(event_copy.id);
-      rdma_destroy_qp(event_copy.id);
       rdma_destroy_id(event_copy.id);
     }
   }
@@ -208,17 +207,16 @@ void FAM::server::run(std::string const &host, std::string const &port)
   auto addr = rdma_get_local_addr(id.get());
   char *ip = inet_ntoa(reinterpret_cast<sockaddr_in *>(addr)->sin_addr);
   spdlog::debug("Server listening on IPoIB: {}:{}", ip, rdma_port);
-
+  std::thread(rdma_server, ec.get()).detach();
+  
   net::io_context ioc{ 1 };
   tcp::acceptor acceptor{ ioc, { address, p } };
-
-  std::thread(rdma_server, ec.get()).detach();
   
   for (;;) {
     tcp::socket socket{ ioc };
     acceptor.accept(socket);
 
-    std::thread(rdma_server, ec.get()).detach();
+    // std::thread(rdma_server, ec.get()).detach();
     std::thread(&do_session, std::move(socket), id.get()).detach();
   }
 }

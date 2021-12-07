@@ -67,7 +67,6 @@ namespace RDMA {
     if (err) throw std::runtime_error("rdma_listen() failed");
   }
 
-
   int inline HCA_responder_resources() { return 0; }
 
   auto inline get_cm_params() noexcept
