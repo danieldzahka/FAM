@@ -78,7 +78,7 @@ namespace request {
   {
     using response_type = FAM::response::mmap_file;
     std::string fname;
-    mmap_file(std::string const &t_fname) : fname{ t_fname } {}
+    explicit mmap_file(std::string const &t_fname) : fname{ t_fname } {}
   };
 
   struct create_QP

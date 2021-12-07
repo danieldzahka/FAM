@@ -2,7 +2,7 @@ find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Boost REQUIRED)
 
-add_library(FAM client.cpp server.cpp)
+add_library(FAM client.cpp server.cpp FAM_rdma.cpp)
 target_link_libraries(
   FAM
   PRIVATE project_options
@@ -10,5 +10,7 @@ target_link_libraries(
           fmt::fmt
           spdlog::spdlog
           Boost::json
+          rdmacm
+          ibverbs
   PUBLIC Boost::boost)
 target_include_directories(FAM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

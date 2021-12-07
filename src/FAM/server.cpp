@@ -1,4 +1,5 @@
 #include <FAM.hpp>
+#include <FAM_rdma.hpp>
 
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
@@ -9,6 +10,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <cstring>
 
 #include <spdlog/spdlog.h>//delete maybe
 
@@ -123,7 +125,7 @@ namespace response {
 }// namespace FAM
 
 namespace {
-void do_session(tcp::socket socket)
+void do_session(tcp::socket socket, rdma_cm_id *const)
 {
   try {
     // Construct the stream by moving in the socket
@@ -164,27 +166,59 @@ void do_session(tcp::socket socket)
     std::cerr << "Error: " << e.what() << std::endl;
   }
 }
+
+void rdma_server(rdma_event_channel *const ec)
+{
+  spdlog::debug("Running RDMA server...");
+  struct rdma_cm_event *event = NULL;
+
+  while (rdma_get_cm_event(ec, &event) == 0) {
+    struct rdma_cm_event event_copy;
+    memcpy(&event_copy, event, sizeof(*event));
+    rdma_ack_cm_event(event);
+
+    if (event_copy.event == RDMA_CM_EVENT_CONNECT_REQUEST) {// Runs on server
+      spdlog::debug("RDMA_CM_EVENT_CONNECT_REQUEST");
+      auto params = FAM::RDMA::get_cm_params();
+      auto const err = rdma_accept(event_copy.id, &params);
+      if (err) spdlog::error("rdma_accept() failed!");
+    } else if (event_copy.event == RDMA_CM_EVENT_ESTABLISHED) {// Runs on both
+      spdlog::debug("RDMA_CM_EVENT_ESTABLISHED");
+    } else if (event_copy.event == RDMA_CM_EVENT_DISCONNECTED) {// Runs on both
+      spdlog::debug("RDMA_CM_EVENT_DISCONNECTED");
+      rdma_disconnect(event_copy.id);
+      rdma_destroy_qp(event_copy.id);
+      rdma_destroy_id(event_copy.id);
+    }
+  }
+}
 }// namespace
 
-void FAM::server::run(std::string const &addr, std::string const &port)
+void FAM::server::run(std::string const &host, std::string const &port)
 {
   spdlog::set_level(spdlog::level::debug);
-  auto const address = net::ip::make_address(addr);
+  auto const address = net::ip::make_address(host);
   auto const p = static_cast<unsigned short>(std::atoi(port.c_str()));
 
-  // The io_context is required for all I/O
+  auto ec = FAM::RDMA::create_ec();
+  auto id = FAM::RDMA::create_id(ec.get());
+  FAM::RDMA::bind_addr(id.get());
+  FAM::RDMA::listen(id.get());
+  auto const rdma_port = ntohs(rdma_get_src_port(id.get()));
+  auto addr = rdma_get_local_addr(id.get());
+  char *ip = inet_ntoa(reinterpret_cast<sockaddr_in *>(addr)->sin_addr);
+  spdlog::debug("Server listening on IPoIB: {}:{}", ip, rdma_port);
+
   net::io_context ioc{ 1 };
-
-  // The acceptor receives incoming connections
   tcp::acceptor acceptor{ ioc, { address, p } };
-  for (;;) {
-    // This will receive the new connection
-    tcp::socket socket{ ioc };
 
-    // Block until we get a connection
+  std::thread(rdma_server, ec.get()).detach();
+  
+  for (;;) {
+    tcp::socket socket{ ioc };
     acceptor.accept(socket);
 
-    // Launch the session, transferring ownership of the socket
-    std::thread(&do_session, std::move(socket)).detach();
+    std::thread(rdma_server, ec.get()).detach();
+    std::thread(&do_session, std::move(socket), id.get()).detach();
   }
 }
