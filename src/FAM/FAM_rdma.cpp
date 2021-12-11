@@ -1,8 +1,12 @@
-#include <FAM_rdma.hpp>
+#include <FAM.hpp>
+#include "FAM_rdma.hpp"
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <rdma/rdma_verbs.h>
+
+#include <spdlog/spdlog.h>
 
 namespace {
 constexpr int TIMEOUT_MS = 500;
@@ -58,7 +62,7 @@ void create_qp(rdma_cm_id *id, ibv_qp_init_attr &qp_attr)
 }
 }// namespace
 
-void FAM::RDMA::client::create_connection()
+void FAM::RDMA::client_impl::create_connection()
 {
   auto chan = ec.get();
   auto t_id = create_id(chan);
@@ -87,4 +91,55 @@ void FAM::RDMA::client::create_connection()
     throw std::runtime_error("connection not established");
 
   this->ids.push_back(std::move(t_id));
+}
+
+void *FAM::RDMA::client_impl::create_region(std::uint64_t const t_size,
+  bool const use_HP,
+  bool const write_allowed)
+{
+  if (this->ids.size() == 0) throw std::runtime_error("No rdma_cm_id's to use");
+  auto id = this->ids.front().get();
+  this->regions.emplace_back(id, t_size, use_HP, write_allowed);
+  auto p = this->regions.back().p.get();
+  return p;
+}
+
+FAM::RDMA::client::client(std::string const &t_host, std::string const &t_port)
+  : pimpl{ std::make_unique<FAM::RDMA::client_impl>(t_host, t_port) }
+{}
+
+FAM::RDMA::client::~client() = default;
+
+void FAM::RDMA::client::create_connection()
+{
+  this->pimpl->create_connection();
+}
+
+void *FAM::RDMA::client::create_region(std::uint64_t const t_size,
+  bool const use_HP,
+  bool const write_allowed)
+{
+  return this->pimpl->create_region(t_size, use_HP, write_allowed);
+}
+
+FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,
+  std::uint64_t const t_size,
+  bool const use_HP,
+  bool const write_allowed)
+  : size{ t_size }, p{ FAM::Util::mmap(t_size, use_HP) }
+{
+  auto ptr = p.get();
+  this->mr = [=]() {
+    if (write_allowed)
+      return rdma_reg_write(id, ptr, t_size);
+    else
+      return rdma_reg_read(id, ptr, t_size);
+  }();
+
+  if (!this->mr) throw std::runtime_error("rdma_reg() failed!");
+}
+
+FAM::RDMA::RDMA_mem::~RDMA_mem()
+{
+  if (rdma_dereg_mr(this->mr)) spdlog::error("rdma_dereg failed");
 }

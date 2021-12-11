@@ -7,6 +7,7 @@
 #include <boost/asio/ip/tcp.hpp>
 
 #include <string>
+#include <memory>
 
 namespace FAM {
 namespace beast = boost::beast;// from <boost/beast.hpp>
@@ -33,7 +34,7 @@ namespace response {
     std::uint64_t const addr;
     std::uint64_t const length;
     allocate_region(std::uint64_t t_addr, std::uint64_t t_length)
-      : addr{ t_addr }, length {t_length}
+      : addr{ t_addr }, length{ t_length }
     {}
   };
 
@@ -42,8 +43,7 @@ namespace response {
     std::uint64_t const addr;
     std::uint64_t const edges;
     std::uint32_t const verts;
-    mmap_file(
-      std::uint64_t t_addr,
+    mmap_file(std::uint64_t t_addr,
       std::uint64_t t_edges,
       std::uint32_t t_verts)
       : addr{ t_addr }, edges{ t_edges }, verts{ t_verts }
@@ -62,7 +62,7 @@ namespace request {
     MMAP_FILE,
     CREATE_QP,
   };
-  
+
   struct ping
   {
     using response_type = FAM::response::ping;
@@ -98,7 +98,8 @@ namespace client {
     RPC_client(std::string host, std::string port);
     ~RPC_client();
     response::ping ping();
-    response::allocate_region allocate_region(request::allocate_region const req);
+    response::allocate_region allocate_region(
+      request::allocate_region const req);
     response::mmap_file mmap_file();
     response::create_QP create_QP();
   };
@@ -116,6 +117,22 @@ namespace server {
   void run(std::string const &host,
     std::string const &port);// throw exception if something bad happens
 }// namespace server
+
+namespace RDMA {
+  class client_impl;// Forward Declare
+  class client
+  {
+    std::unique_ptr<client_impl> pimpl;
+
+  public:
+    client(std::string const &t_host, std::string const &t_port);
+    ~client();
+    void create_connection();
+    void *create_region(std::uint64_t const t_size,
+      bool const use_HP,
+      bool const write_allowed);
+  };
+}// namespace RDMA
 }// namespace FAM
 
 #endif

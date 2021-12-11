@@ -2,7 +2,7 @@ find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Boost REQUIRED)
 
-add_library(FAM client.cpp server.cpp FAM_rdma.cpp)
+add_library(FAM client.cpp server.cpp FAM_rdma.cpp util.cpp)
 target_link_libraries(
   FAM
   PRIVATE project_options

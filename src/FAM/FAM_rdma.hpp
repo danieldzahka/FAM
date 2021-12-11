@@ -9,18 +9,22 @@
 #include <type_traits>
 #include <cstring>
 
+#include "util.hpp"
 // #include <spdlog/spdlog.h> //DELETE
 
 namespace FAM {
 namespace RDMA {
   struct ec_deleter
   {
-    void operator()(rdma_event_channel *c) { rdma_destroy_event_channel(c); }
+    void operator()(rdma_event_channel *c) noexcept
+    {
+      rdma_destroy_event_channel(c);
+    }
   };
 
   struct id_deleter
   {
-    void operator()(rdma_cm_id *id)
+    void operator()(rdma_cm_id *id) noexcept
     {
       rdma_disconnect(id);
       rdma_destroy_qp(id);
@@ -80,25 +84,45 @@ namespace RDMA {
     return params;
   }
 
-  class client
+  class RDMA_mem
+  {
+  public:
+    std::uint64_t size;
+    std::unique_ptr<void, std::function<void(void *)>> p;
+    ibv_mr *mr;
+
+    RDMA_mem(rdma_cm_id *id,
+      std::uint64_t const t_size,
+      bool const use_HP,
+      bool const write_allowed);
+
+    RDMA_mem(RDMA_mem &&) = default;
+
+    ~RDMA_mem();
+  };
+
+  class client_impl
   {
     decltype(FAM::RDMA::create_ec()) ec;
     std::string host;
     std::string port;
+    std::vector<RDMA_mem> regions;
 
   public:
     std::vector<decltype(create_id(ec.get()))> ids;
 
-    client(std::string const &t_host, std::string const &t_port)
+    client_impl(std::string const &t_host, std::string const &t_port)
       : ec{ create_ec() }, host{ t_host }, port{ t_port }
     {}
 
-    client(const client &) = delete;
-    client &operator=(const client &) = delete;
+    client_impl(const client_impl &) = delete;
+    client_impl &operator=(const client_impl &) = delete;
 
     void create_connection();
+    void *create_region(std::uint64_t const t_size,
+      bool const use_HP,
+      bool const write_allowed);
   };
-
 }// namespace RDMA
 }// namespace FAM
 

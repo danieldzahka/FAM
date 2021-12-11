@@ -1,12 +1,13 @@
 #include <catch2/catch.hpp>
 #include <FAM.hpp>
-#include <FAM_rdma.hpp>
 #include <constants.hpp>
 #include <string>
 
 namespace {
 const std::string host = MEMADDR;
 const std::string port = PORT;
+const std::string rdma_host = "192.168.12.2";
+const std::string rdma_port = "35287";
 }// namespace
 
 TEST_CASE("RPC Consruction", "[RPC]")
@@ -30,6 +31,9 @@ TEST_CASE("RPC Allocate Region", "[RPC]")
   using namespace FAM;
   using namespace client;
 
+  FAM::RDMA::client rdma_client{ rdma_host, rdma_port };
+  REQUIRE_NOTHROW(rdma_client.create_connection());
+
   RPC_client client{ host, port };
 
   SECTION("Message: allocate_region")
@@ -43,18 +47,18 @@ TEST_CASE("RPC Allocate Region", "[RPC]")
 
 TEST_CASE("RDMA client consruction", "[RDMA]")
 {
-  const std::string rdma_host = "192.168.12.2";
-  const std::string rdma_port = "35287";
-
   REQUIRE_NOTHROW(FAM::RDMA::client{ rdma_host, rdma_port });
 }
 
 TEST_CASE("RDMA client connection", "[RDMA]")
 {
-  const std::string rdma_host = "192.168.12.2";
-  const std::string rdma_port = "35287";
-
   FAM::RDMA::client client{ rdma_host, rdma_port };
   REQUIRE_NOTHROW(client.create_connection());
-  REQUIRE(client.ids.size() == 1);
+}
+
+TEST_CASE("Client Create RDMA Buffer", "[RDMA]")
+{
+  FAM::RDMA::client client{ rdma_host, rdma_port };
+  REQUIRE_NOTHROW(client.create_connection());
+  REQUIRE_NOTHROW(client.create_region(771, false, false));
 }
