@@ -104,6 +104,32 @@ void *FAM::RDMA::client_impl::create_region(std::uint64_t const t_size,
   return p;
 }
 
+void FAM::RDMA::client_impl::read(void *laddr,
+  void *raddr,
+  uint32_t length) noexcept
+{
+  // struct ibv_send_wr wr;
+  // struct ibv_sge sge;
+  // memset(&wr, 0, sizeof(wr));// maybe optimize away
+
+  // wr.opcode = IBV_WR_RDMA_READ;
+  // wr.send_flags = IBV_SEND_SIGNALED;// can change for selective signaling
+  // wr.wr.rdma.remote_addr = ;
+  // wr.wr.rdma.rkey = ;
+
+  // wr.sg_list = &sge;
+  // wr.num_sge = 1;
+  // sge.addr = reinterpret_cast<uintptr_t>(buffer);
+  // sge.length = length;
+  // sge.lkey = ctx->heap_mr->lkey;
+}
+
+void FAM::RDMA::client_impl::write(void *laddr,
+  void *raddr,
+  uint32_t length) noexcept
+{}
+
+
 FAM::RDMA::client::client(std::string const &t_host, std::string const &t_port)
   : pimpl{ std::make_unique<FAM::RDMA::client_impl>(t_host, t_port) }
 {}
@@ -120,6 +146,18 @@ void *FAM::RDMA::client::create_region(std::uint64_t const t_size,
   bool const write_allowed)
 {
   return this->pimpl->create_region(t_size, use_HP, write_allowed);
+}
+
+void FAM::RDMA::client::read(void *laddr, void *raddr, uint32_t length) noexcept
+{
+  this->pimpl->read(laddr, raddr, length);
+}
+
+void FAM::RDMA::client::write(void *laddr,
+  void *raddr,
+  uint32_t length) noexcept
+{
+  this->pimpl->write(laddr, raddr, length);
 }
 
 FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,

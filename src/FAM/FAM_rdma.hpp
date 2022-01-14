@@ -122,6 +122,9 @@ namespace RDMA {
     void *create_region(std::uint64_t const t_size,
       bool const use_HP,
       bool const write_allowed);
+
+    void read(void *laddr, void *raddr, uint32_t length) noexcept;
+    void write(void *laddr, void *raddr, uint32_t length) noexcept;
   };
 }// namespace RDMA
 }// namespace FAM
