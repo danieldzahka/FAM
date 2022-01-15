@@ -6,6 +6,7 @@ package fam;
 service Greeter {
   // Sends a greeting
   rpc SayHello (HelloRequest) returns (HelloReply) {}
+  rpc Sayother (otherRequest) returns (otherReply) {}
 }
 
 // The request message containing the user's name.
@@ -15,5 +16,15 @@ message HelloRequest {
 
 // The response message containing the greetings
 message HelloReply {
+  string message = 1;
+}
+
+// The request message containing the user's name.
+message otherRequest {
+  string name = 1;
+}
+
+// The response message containing the greetings
+message otherReply {
   string message = 1;
 }
