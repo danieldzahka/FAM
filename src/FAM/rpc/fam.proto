@@ -2,50 +2,27 @@ syntax = "proto3";
 
 package fam;
 
-// The greeting service definition.
-service Greeter {
-  // Sends a greeting
-  rpc SayHello (HelloRequest) returns (HelloReply) {}
-  rpc Sayother (otherRequest) returns (otherReply) {}
+service FAMController {
+  rpc Ping (PingRequest) returns (PingReply) {}
+  rpc AllocateRegion (AllocateRegionRequest) returns (AllocateRegionReply) {}
+  rpc MmapFile (MmapFileRequest) returns (MmapFileReply) {}
 }
 
-// The request message containing the user's name.
-message HelloRequest {
-  string name = 1;
+message PingRequest {}
+message PingReply {}
+
+message AllocateRegionRequest {
+  fixed64 size = 1;
+}
+message AllocateRegionReply {
+  fixed64 addr = 1;
+  fixed64 length = 2;
 }
 
-// The response message containing the greetings
-message HelloReply {
-  string message = 1;
+message MmapFileRequest {
+  string path = 1;
 }
-
-// The request message containing the user's name.
-message otherRequest {
-  string name = 1;
+message MmapFileReply {
+  fixed64 addr = 1;
+  fixed64 length = 2;
 }
-
-// The response message containing the greetings
-message otherReply {
-  string message = 1;
-}
-
-// message Ping {}
-// message PingReply {}
-
-// message AllocateRegion {
-//   fixed64 size = 1;
-// }
-// message AllocateRegionReply 
-//   fixed64 addr = 1;
-//   fixed64 length = 2;
-// }
-
-// message MmapFile {
-//   string path = 1;
-// }
-// message MmapFileReply {
-//   fixed64 addr = 1;
-//   fixed64 length = 2;
-// }
-
-

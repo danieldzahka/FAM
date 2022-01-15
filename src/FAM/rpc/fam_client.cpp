@@ -1,6 +1,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <stdexcept>
 
 #include <grpcpp/grpcpp.h>
 
@@ -9,52 +10,40 @@
 using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
-using fam::Greeter;
-using fam::HelloReply;
-using fam::HelloRequest;
+using fam::FAMController;
 
 class GreeterClient
 {
 public:
   GreeterClient(std::shared_ptr<Channel> channel)
-    : stub_(Greeter::NewStub(channel))
+    : stub_(FAMController::NewStub(channel))
   {}
 
-  std::string SayHello(const std::string &user)
+  void Ping()
   {
-    HelloRequest request;
-    request.set_name(user);
-    HelloReply reply;
+    fam::PingRequest request;
+    fam::PingReply reply;
     ClientContext context;
 
-    Status status = stub_->SayHello(&context, request, &reply);
-    if (status.ok()) {
-      return reply.message();
-    } else {
-      std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
-      return "RPC failed";
-    }
+    Status status = stub_->Ping(&context, request, &reply);
+    if (status.ok()) return;
+    throw std::runtime_error(status.error_message());
   }
 
-  std::string Sayother(const std::string &user)
-  {
-    fam::otherRequest request;
-    request.set_name(user);
-    fam::otherReply reply;
+  auto AllocateRegion(std::uint64_t const size){
+    fam::AllocateRegionRequest request;
+    request.set_size(size);
+    fam::AllocateRegionReply reply;
     ClientContext context;
-    Status status = stub_->Sayother(&context, request, &reply);
-    if (status.ok()) {
-      return reply.message();
-    } else {
-      std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
-      return "RPC failed";
-    }
-  }
+    auto const status = stub_->AllocateRegion(&context, request, &reply);
 
+    if (status.ok()) return std::make_pair(reply.addr(), reply.length());
+
+    throw std::runtime_error(status.error_message());
+  }
+  
 private:
-  std::unique_ptr<Greeter::Stub> stub_;
+  std::unique_ptr<FAMController::Stub> stub_;
 };
 
 int main(int, char **)
@@ -63,12 +52,14 @@ int main(int, char **)
 
   GreeterClient greeter(
     grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()));
-  std::string user("world");
-  std::string reply = greeter.SayHello(user);
-  std::cout << "Greeter received: " << reply << std::endl;
+  try {
+    greeter.Ping();
+    std::cout << "Ping ok\n";
 
-  reply = greeter.Sayother(user);
-  std::cout << "Greeter received: " << reply << std::endl;
+    auto const [addr, length] = greeter.AllocateRegion(69);
+  } catch (std::exception const &e) {
+    std::cout << "exception:  " << e.what() << std::endl;
+  }
 
   return 0;
 }

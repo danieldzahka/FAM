@@ -34,12 +34,7 @@ using grpc::ServerBuilder;
 using grpc::ServerCompletionQueue;
 using grpc::ServerContext;
 using grpc::Status;
-using fam::Greeter;
-using fam::HelloReply;
-using fam::HelloRequest;
-
-
-
+using fam::FAMController;
   
 class ServerImpl final
 {
@@ -69,7 +64,7 @@ private:
   class async_state_machine
   {
   public:
-    async_state_machine(Greeter::AsyncService *service,
+    async_state_machine(FAMController::AsyncService *service,
       ServerCompletionQueue *cq)
       : service_(service), cq_(cq), status_(CREATE)
     {}
@@ -93,58 +88,58 @@ private:
     }
 
   protected:
-    Greeter::AsyncService *service_;
+    FAMController::AsyncService *service_;
     ServerCompletionQueue *cq_;
     ServerContext ctx_;
     enum CallStatus { CREATE, PROCESS, FINISH };
     CallStatus status_;
   };
 
-  class Hello : public async_state_machine
+  class AllocateRegionHandler : public async_state_machine
   {
-    HelloRequest request_;
-    HelloReply reply_;
-    ServerAsyncResponseWriter<HelloReply> responder_;
+    fam::AllocateRegionRequest request_;
+    fam::AllocateRegionReply reply_;
+    ServerAsyncResponseWriter<fam::AllocateRegionReply> responder_;
 
   public:
-    Hello(Greeter::AsyncService *service, ServerCompletionQueue *cq)
+    AllocateRegionHandler(FAMController::AsyncService *service, ServerCompletionQueue *cq)
       : async_state_machine(service, cq), responder_(&ctx_)
     {}
 
     void request() override
     {
-      service_->RequestSayHello(&ctx_, &request_, &responder_, cq_, cq_, this);
+      service_->RequestAllocateRegion(&ctx_, &request_, &responder_, cq_, cq_, this);
     };
     void handle() override
     {
-      (new Hello(service_, cq_))->Proceed();
-      std::string prefix("Hello ");
-      reply_.set_message(prefix + request_.name());
+      (new AllocateRegionHandler(service_, cq_))->Proceed();
+
+      reply_.set_addr(96);
+      reply_.set_length(request_.size());
       status_ = FINISH;
+      // responder_.Finish(reply_, Status(grpc::StatusCode::ABORTED, "error message here"), this);
       responder_.Finish(reply_, Status::OK, this);
     }
   };
 
-  class Other : public async_state_machine
+  class PingHandler : public async_state_machine
   {
-    fam::otherRequest request_;
-    fam::otherReply reply_;
-    ServerAsyncResponseWriter<fam::otherReply> responder_;
+    fam::PingRequest request_;
+    fam::PingReply reply_;
+    ServerAsyncResponseWriter<fam::PingReply> responder_;
 
   public:
-    Other(Greeter::AsyncService *service, ServerCompletionQueue *cq)
+    PingHandler(FAMController::AsyncService *service, ServerCompletionQueue *cq)
       : async_state_machine(service, cq), responder_(&ctx_)
     {}
 
     void request() override
     {
-      service_->RequestSayother(&ctx_, &request_, &responder_, cq_, cq_, this);
+      service_->RequestPing(&ctx_, &request_, &responder_, cq_, cq_, this);
     };
     void handle() override
     {
-      (new Other(service_, cq_))->Proceed();
-      std::string prefix("Other ");
-      reply_.set_message(prefix + request_.name());
+      (new PingHandler(service_, cq_))->Proceed();
       status_ = FINISH;
       responder_.Finish(reply_, Status::OK, this);
     }
@@ -153,8 +148,8 @@ private:
   void HandleRpcs()
   {
     // Spawn a new CallData instance to serve new clients.
-    (new Hello(&service_, cq_.get()))->Proceed();
-    (new Other(&service_, cq_.get()))->Proceed();
+    (new AllocateRegionHandler(&service_, cq_.get()))->Proceed();
+    (new PingHandler(&service_, cq_.get()))->Proceed();
     void *tag;// uniquely identifies a request.
     bool ok;
     while (true) {
@@ -165,7 +160,7 @@ private:
   }
 
   std::unique_ptr<ServerCompletionQueue> cq_;
-  Greeter::AsyncService service_;
+  FAMController::AsyncService service_;
   std::unique_ptr<Server> server_;
 };
 }// namespace
