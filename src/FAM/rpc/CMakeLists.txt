@@ -18,9 +18,6 @@ add_custom_command(
         "${fam_proto}"
       DEPENDS "${fam_proto}")
 
-# # Include generated *.pb.h files
-# include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-
 add_library(fam_grpc_proto
   ${fam_grpc_srcs}
   ${fam_grpc_hdrs}

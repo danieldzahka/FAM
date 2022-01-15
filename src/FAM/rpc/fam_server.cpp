@@ -24,7 +24,9 @@
 #include <grpc/support/log.h>
 #include <grpcpp/grpcpp.h>
 
-#include "fam.grpc.pb.h"
+#include <fam.grpc.pb.h>
+
+namespace {
 
 using grpc::Server;
 using grpc::ServerAsyncResponseWriter;
@@ -36,6 +38,9 @@ using fam::Greeter;
 using fam::HelloReply;
 using fam::HelloRequest;
 
+
+
+  
 class ServerImpl final
 {
 public:
@@ -145,8 +150,6 @@ private:
     }
   };
 
-
-  // This can be run in multiple threads if needed.
   void HandleRpcs()
   {
     // Spawn a new CallData instance to serve new clients.
@@ -165,6 +168,7 @@ private:
   Greeter::AsyncService service_;
   std::unique_ptr<Server> server_;
 };
+}// namespace
 
 int main(int, char **)
 {

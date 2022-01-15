@@ -11,6 +11,7 @@
 #include <string>
 #include <thread>
 #include <cstring>
+#include <poll.h>
 
 #include <spdlog/spdlog.h>//delete maybe
 
@@ -21,8 +22,8 @@ namespace net = boost::asio;// from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp;// from <boost/asio/ip/tcp.hpp>
 
 namespace {
-  ibv_pd * volatile my_pd;
-  
+ibv_pd *volatile my_pd;
+
 class session
 {
 public:
@@ -62,8 +63,7 @@ auto handle(FAM::request::allocate_region const req, session &s)
     return boost::json::value{ { "status", "OK" },
       { "response", boost::json::value_from(allocate_region{ ptr, length }) } };
   } catch (std::exception const &e) {
-    return boost::json::value{ { "status", "OK" },
-      { "response",  e.what()} };
+    return boost::json::value{ { "status", "OK" }, { "response", e.what() } };
   }
 
   return boost::json::value{ { "status", "OK" },
@@ -192,42 +192,64 @@ void do_session(tcp::socket socket, rdma_cm_id *const id)
   }
 }
 
-  void rdma_server(rdma_event_channel *const ec)
+void rdma_server(rdma_event_channel *const ec)
 {
   spdlog::debug("Running RDMA server...");
   struct rdma_cm_event *event = NULL;
 
-  while (rdma_get_cm_event(ec, &event) == 0) {
-    struct rdma_cm_event event_copy;
-    memcpy(&event_copy, event, sizeof(*event));
-    rdma_ack_cm_event(event);
+  while (1) {
+    pollfd pfd;
+    nfds_t const n_fds = 1;
+    int const ms = 500;
+    pfd.fd = ec->fd;
+    pfd.events = POLLIN | POLLOUT | POLLPRI;
+    auto ret = poll(&pfd, n_fds, ms);
+    if (ret == -1) {
+      spdlog::error("poll error -1");
+      throw std::runtime_error("poll returned -1");
+    } else if (ret > 0) {
+      if (rdma_get_cm_event(ec, &event) == 0) {
+        struct rdma_cm_event event_copy;
+        memcpy(&event_copy, event, sizeof(*event));
+        rdma_ack_cm_event(event);
 
-    if (event_copy.event == RDMA_CM_EVENT_CONNECT_REQUEST) {// Runs on server
-      spdlog::debug("RDMA_CM_EVENT_CONNECT_REQUEST");
-      struct ibv_qp_init_attr qp_attr;
-      memset(&qp_attr, 0, sizeof(qp_attr));
-      qp_attr.qp_type = IBV_QPT_RC;
-      qp_attr.cap.max_send_wr = 10000;// increase later
-      qp_attr.cap.max_recv_wr = 10;
-      qp_attr.cap.max_send_sge = 1;
-      qp_attr.cap.max_recv_sge = 1;
-      qp_attr.sq_sig_all = 0;// shouldn't need this explicitly
-      if (rdma_create_qp(event_copy.id, nullptr, &qp_attr))
-        throw std::runtime_error("rdma_create_qp() failed!");
+        spdlog::debug(rdma_event_str(event_copy.event));
+        
+        if (event_copy.event
+            == RDMA_CM_EVENT_CONNECT_REQUEST) {// Runs on server
+          struct ibv_qp_init_attr qp_attr;
+          memset(&qp_attr, 0, sizeof(qp_attr));
+          qp_attr.qp_type = IBV_QPT_RC;
+          qp_attr.cap.max_send_wr = 10000;// increase later
+          qp_attr.cap.max_recv_wr = 10;
+          qp_attr.cap.max_send_sge = 1;
+          qp_attr.cap.max_recv_sge = 1;
+          qp_attr.sq_sig_all = 0;// shouldn't need this explicitly
+          if (rdma_create_qp(event_copy.id, nullptr, &qp_attr))
+            throw std::runtime_error("rdma_create_qp() failed!");
 
-      auto params = FAM::RDMA::get_cm_params();
-      auto const err = rdma_accept(event_copy.id, &params);
-      if (err) spdlog::error("rdma_accept() failed!");
-    } else if (event_copy.event == RDMA_CM_EVENT_ESTABLISHED) {// Runs on both
-      spdlog::debug("RDMA_CM_EVENT_ESTABLISHED");
-      my_pd = event_copy.id->pd;
-      // spdlog::debug("id {} id->verbs {} id->pd {}", (void*)(event_copy.id), (void*)(event_copy.id)->verbs, (void*)(event_copy.id)->pd);
-      // FAM::RDMA::RDMA_mem m {event_copy.id, 69, false, false};
-    } else if (event_copy.event == RDMA_CM_EVENT_DISCONNECTED) {// Runs on both
-      spdlog::debug("RDMA_CM_EVENT_DISCONNECTED");
-      rdma_disconnect(event_copy.id);
-      rdma_destroy_qp(event_copy.id);
-      rdma_destroy_id(event_copy.id);
+          auto params = FAM::RDMA::get_cm_params();
+          auto const err = rdma_accept(event_copy.id, &params);
+          if (err) spdlog::error("rdma_accept() failed!");
+        } else if (event_copy.event
+                   == RDMA_CM_EVENT_ESTABLISHED) {// Runs on both
+          my_pd = event_copy.id->pd; //grab this if null in session
+          // spdlog::debug("id {} id->verbs {} id->pd {}",
+          // (void*)(event_copy.id), (void*)(event_copy.id)->verbs,
+          // (void*)(event_copy.id)->pd); FAM::RDMA::RDMA_mem m {event_copy.id,
+          // 69, false, false};
+        } else if (event_copy.event
+                   == RDMA_CM_EVENT_DISCONNECTED) {// Runs on both
+          rdma_disconnect(event_copy.id);
+          rdma_destroy_qp(event_copy.id);
+          rdma_destroy_id(event_copy.id);
+        }
+      } else {
+        spdlog::error("get cm event error");
+        throw std::runtime_error("rdma get cm event");
+      }
+    } else {
+      spdlog::debug("woke up. no data");
     }
   }
 }
@@ -248,7 +270,7 @@ void FAM::server::run(std::string const &host, std::string const &port)
   char *ip = inet_ntoa(reinterpret_cast<sockaddr_in *>(addr)->sin_addr);
   spdlog::debug("Server listening on IPoIB: {}:{}", ip, rdma_port);
   std::thread(rdma_server, ec.get()).detach();
-  
+
   net::io_context ioc{ 1 };
   tcp::acceptor acceptor{ ioc, { address, p } };
 

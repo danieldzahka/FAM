@@ -28,3 +28,24 @@ message otherRequest {
 message otherReply {
   string message = 1;
 }
+
+// message Ping {}
+// message PingReply {}
+
+// message AllocateRegion {
+//   fixed64 size = 1;
+// }
+// message AllocateRegionReply 
+//   fixed64 addr = 1;
+//   fixed64 length = 2;
+// }
+
+// message MmapFile {
+//   string path = 1;
+// }
+// message MmapFileReply {
+//   fixed64 addr = 1;
+//   fixed64 length = 2;
+// }
+
+
