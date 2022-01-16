@@ -96,37 +96,39 @@ namespace RDMA {
       bool const use_HP,
       bool const write_allowed);
 
-    RDMA_mem(RDMA_mem &&) = default;
+    RDMA_mem(RDMA_mem &&) = delete;
+    RDMA_mem &operator=(RDMA_mem &&) = delete;
 
     ~RDMA_mem();
   };
 
-  class client_impl
-  {
-    decltype(FAM::RDMA::create_ec()) ec;
-    std::string host;
-    std::string port;
-    std::vector<RDMA_mem> regions;
-
-  public:
-    std::vector<decltype(create_id(ec.get()))> ids;
-
-    client_impl(std::string const &t_host, std::string const &t_port)
-      : ec{ create_ec() }, host{ t_host }, port{ t_port }
-    {}
-
-    client_impl(const client_impl &) = delete;
-    client_impl &operator=(const client_impl &) = delete;
-
-    void create_connection();
-    void *create_region(std::uint64_t const t_size,
-      bool const use_HP,
-      bool const write_allowed);
-
-    void read(void *laddr, void *raddr, uint32_t length) noexcept;
-    void write(void *laddr, void *raddr, uint32_t length) noexcept;
-  };
 }// namespace RDMA
 }// namespace FAM
+
+class FAM::client::FAM_control::RDMA_service_impl
+{
+  decltype(FAM::RDMA::create_ec()) ec;
+  std::string host;
+  std::string port;
+  std::vector<std::unique_ptr<FAM::RDMA::RDMA_mem>> regions;
+
+public:
+  std::vector<decltype(FAM::RDMA::create_id(ec.get()))> ids;
+
+  RDMA_service_impl(std::string const &t_host, std::string const &t_port)
+    : ec{ FAM::RDMA::create_ec() }, host{ t_host }, port{ t_port }
+  {}
+
+  RDMA_service_impl(const RDMA_service_impl &) = delete;
+  RDMA_service_impl &operator=(const RDMA_service_impl &) = delete;
+
+  void create_connection();
+  void *create_region(std::uint64_t const t_size,
+    bool const use_HP,
+    bool const write_allowed);
+
+  void read(void *laddr, void *raddr, uint32_t length) noexcept;
+  void write(void *laddr, void *raddr, uint32_t length) noexcept;
+};
 
 #endif

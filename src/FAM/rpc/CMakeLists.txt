@@ -35,16 +35,16 @@ target_include_directories(fam_grpc_proto
   PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR})
 
-add_executable(fam_client fam_client.cpp)
-target_link_libraries(fam_client PRIVATE
-          project_options
-          project_warnings
-          fam_grpc_proto
-)
+# add_executable(fam_client fam_client.cpp)
+# target_link_libraries(fam_client PRIVATE
+#           project_options
+#           project_warnings
+#           fam_grpc_proto
+# )
 
-add_executable(fam_server fam_server.cpp)
-target_link_libraries(fam_server PRIVATE
-          project_options
-          project_warnings
-          fam_grpc_proto
-)
+# add_executable(fam_server fam_server.cpp)
+# target_link_libraries(fam_server PRIVATE
+#           project_options
+#           project_warnings
+#           fam_grpc_proto
+# )

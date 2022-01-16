@@ -15,7 +15,7 @@ int main(int argc, const char **argv)
   desc.add_options()("help,h", "Help screen")("server-addr,a",
     po::value<std::string>()->default_value("0.0.0.0"),
     "Server's IPoIB addr")(
-    "port,p", po::value<std::string>()->default_value("8080"), "server port");
+    "port,p", po::value<std::string>()->default_value("50051"), "server port");
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);

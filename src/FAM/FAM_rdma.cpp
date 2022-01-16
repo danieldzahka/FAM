@@ -62,10 +62,10 @@ void create_qp(rdma_cm_id *id, ibv_qp_init_attr &qp_attr)
 }
 }// namespace
 
-void FAM::RDMA::client_impl::create_connection()
+void FAM::client::FAM_control::RDMA_service_impl::create_connection()
 {
   auto chan = ec.get();
-  auto t_id = create_id(chan);
+  auto t_id = FAM::RDMA::create_id(chan);
   auto id = t_id.get();
 
   resolve_addr(id, this->host, this->port);
@@ -93,18 +93,20 @@ void FAM::RDMA::client_impl::create_connection()
   this->ids.push_back(std::move(t_id));
 }
 
-void *FAM::RDMA::client_impl::create_region(std::uint64_t const t_size,
+void *FAM::client::FAM_control::RDMA_service_impl::create_region(
+  std::uint64_t const t_size,
   bool const use_HP,
   bool const write_allowed)
 {
   if (this->ids.size() == 0) throw std::runtime_error("No rdma_cm_id's to use");
   auto id = this->ids.front().get();
-  this->regions.emplace_back(id, t_size, use_HP, write_allowed);
-  auto p = this->regions.back().p.get();
+  this->regions.emplace_back(
+    std::make_unique<FAM::RDMA::RDMA_mem>(id, t_size, use_HP, write_allowed));
+  auto p = this->regions.back()->p.get();
   return p;
 }
 
-void FAM::RDMA::client_impl::read(void *laddr,
+void FAM::client::FAM_control::RDMA_service_impl::read(void *laddr,
   void *raddr,
   uint32_t length) noexcept
 {
@@ -124,41 +126,43 @@ void FAM::RDMA::client_impl::read(void *laddr,
   // sge.lkey = ctx->heap_mr->lkey;
 }
 
-void FAM::RDMA::client_impl::write(void *laddr,
+void FAM::client::FAM_control::RDMA_service_impl::write(void *laddr,
   void *raddr,
   uint32_t length) noexcept
 {}
 
 
-FAM::RDMA::client::client(std::string const &t_host, std::string const &t_port)
-  : pimpl{ std::make_unique<FAM::RDMA::client_impl>(t_host, t_port) }
-{}
+// FAM::RDMA::client::client(std::string const &t_host, std::string const
+// &t_port)
+//   : pimpl{ std::make_unique<FAM::RDMA::client_impl>(t_host, t_port) }
+// {}
 
-FAM::RDMA::client::~client() = default;
+// FAM::RDMA::client::~client() = default;
 
-void FAM::RDMA::client::create_connection()
-{
-  this->pimpl->create_connection();
-}
+// void FAM::RDMA::client::create_connection()
+// {
+//   this->pimpl->create_connection();
+// }
 
-void *FAM::RDMA::client::create_region(std::uint64_t const t_size,
-  bool const use_HP,
-  bool const write_allowed)
-{
-  return this->pimpl->create_region(t_size, use_HP, write_allowed);
-}
+// void *FAM::RDMA::client::create_region(std::uint64_t const t_size,
+//   bool const use_HP,
+//   bool const write_allowed)
+// {
+//   return this->pimpl->create_region(t_size, use_HP, write_allowed);
+// }
 
-void FAM::RDMA::client::read(void *laddr, void *raddr, uint32_t length) noexcept
-{
-  this->pimpl->read(laddr, raddr, length);
-}
+// void FAM::RDMA::client::read(void *laddr, void *raddr, uint32_t length)
+// noexcept
+// {
+//   this->pimpl->read(laddr, raddr, length);
+// }
 
-void FAM::RDMA::client::write(void *laddr,
-  void *raddr,
-  uint32_t length) noexcept
-{
-  this->pimpl->write(laddr, raddr, length);
-}
+// void FAM::RDMA::client::write(void *laddr,
+//   void *raddr,
+//   uint32_t length) noexcept
+// {
+//   this->pimpl->write(laddr, raddr, length);
+// }
 
 FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,
   std::uint64_t const t_size,
@@ -166,6 +170,7 @@ FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,
   bool const write_allowed)
   : size{ t_size }, p{ FAM::Util::mmap(t_size, use_HP) }
 {
+  spdlog::debug("RDMA_mem()");
   auto ptr = p.get();
   this->mr = [=]() {
     if (write_allowed)
@@ -179,5 +184,6 @@ FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,
 
 FAM::RDMA::RDMA_mem::~RDMA_mem()
 {
+  spdlog::debug("~RDMA_mem()");
   if (rdma_dereg_mr(this->mr)) spdlog::error("rdma_dereg failed");
 }

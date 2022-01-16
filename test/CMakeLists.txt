@@ -7,8 +7,8 @@ add_library(catch_main STATIC catch_main.cpp)
 target_link_libraries(catch_main PUBLIC Catch2::Catch2)
 target_link_libraries(catch_main PRIVATE project_options)
 
-set(MEMADDR "130.207.122.215" CACHE STRING "IP of Memserver Ethernet Interface")
-set(PORT "8080" CACHE STRING "Ethernet portnum")
+set(MEMADDR "0.0.0.0" CACHE STRING "IP of Memserver Ethernet Interface")
+set(PORT "50051" CACHE STRING "Ethernet portnum")
 configure_file("constants.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/constants.hpp")
 
 add_executable(tests tests.cpp)

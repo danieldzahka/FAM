@@ -1,143 +1,84 @@
 #include <FAM.hpp>
+
 #include <stdexcept>
-
-#include <boost/beast/core.hpp>
-#include <boost/beast/websocket.hpp>
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/json.hpp>
-#include <cstdlib>
-#include <iostream>
 #include <string>
+#include <iostream>
+#include <memory>
 
-namespace beast = boost::beast;// from <boost/beast.hpp>
-namespace http = beast::http;// from <boost/beast/http.hpp>
-namespace websocket = beast::websocket;// from <boost/beast/websocket.hpp>
-namespace net = boost::asio;// from <boost/asio.hpp>
-using tcp = boost::asio::ip::tcp;// from <boost/asio/ip/tcp.hpp>
+#include <grpcpp/grpcpp.h>
 
-using namespace FAM::client;
+#include "fam.grpc.pb.h"
+#include "FAM_rdma.hpp"
 
-namespace {
-auto type_to_string(FAM::request::type const type)
+using grpc::Channel;
+using grpc::ClientContext;
+using grpc::Status;
+using fam::FAMController;
+
+class FAM::client::FAM_control::control_service_impl
 {
-  using namespace FAM;
-  switch (type) {
-  case request::type::PING:
-    return "PING";
-  case request::type::ALLOCATE_REGION:
-    return "ALLOCATE_REGION";
-  case request::type::MMAP_FILE:
-    return "MMAP_FILE";
-  case request::type::CREATE_QP:
-    return "CREATE_QP";
-  }
-  throw std::runtime_error("type_to_string: Invalid Message Type");
-}
+public:
+  control_service_impl(std::shared_ptr<Channel> channel)
+    : stub_(FAMController::NewStub(channel))
+  {}
 
-auto string_to_status(std::string const &s)
-{
-  using namespace FAM;
-  if (s == "OK") return response::status::OK;
-  if (s == "FAIL") return response::status::FAIL;
-  throw std::runtime_error("string_to_status: Invalid Status String");
-}
-
-}// namespace
-
-namespace FAM {
-namespace request {
-  // struct -> json conversions
-  void tag_invoke(boost::json::value_from_tag,
-    boost::json::value &jv,
-    ping const &)
+  void Ping()
   {
-    jv = {};
+    fam::PingRequest request;
+    fam::PingReply reply;
+    ClientContext context;
+
+    Status status = stub_->Ping(&context, request, &reply);
+    if (status.ok()) return;
+    throw std::runtime_error(status.error_message());
   }
 
-  void tag_invoke(boost::json::value_from_tag,
-    boost::json::value &jv,
-    allocate_region const &req)
+  auto AllocateRegion(std::uint64_t const size)
   {
-    jv = {{"size", req.size}};
+    fam::AllocateRegionRequest request;
+    request.set_size(size);
+    fam::AllocateRegionReply reply;
+    ClientContext context;
+    auto const status = stub_->AllocateRegion(&context, request, &reply);
+
+    if (status.ok()) return std::make_pair(reply.addr(), reply.length());
+
+    throw std::runtime_error(status.error_message());
   }
 
-}// namespace request
-namespace response {
-  // json -> struct conversions
-  auto tag_invoke(boost::json::value_to_tag<ping>, boost::json::value const &)
-  {
-    return ping{};
-  }
-  auto tag_invoke(boost::json::value_to_tag<allocate_region>,
-    boost::json::value const &jv)
-  {
-    using namespace boost::json;
-    auto const &obj = jv.as_object();
-    return allocate_region{ value_to<std::uint64_t>(obj.at("addr")),
-      value_to<std::uint64_t>(obj.at("length")) };
-  }
-}// namespace response
-}// namespace FAM
+private:
+  std::unique_ptr<FAMController::Stub> stub_;
+};
 
-namespace {
-boost::json::value transmit_then_recv(websocket::stream<tcp::socket> &ws,
-  boost::json::value const &jv)
+FAM::client::FAM_control::FAM_control(std::string const &control_addr,
+  std::string const &RDMA_addr,
+  std::string const &RDMA_port)
+  : control_service{ std::make_unique<
+      FAM::client::FAM_control::FAM_control::control_service_impl>(
+      grpc::CreateChannel(control_addr, grpc::InsecureChannelCredentials())) },
+    RDMA_service{ std::make_unique<FAM::client::FAM_control::RDMA_service_impl>(
+      RDMA_addr,
+      RDMA_port) }
+
+{}
+
+FAM::client::FAM_control::~FAM_control() {}
+
+void FAM::client::FAM_control::ping() { this->control_service->Ping(); }
+
+void FAM::client::FAM_control::allocate_region(std::uint64_t size)
 {
-  auto const text = boost::json::serialize(jv);
-  ws.write(net::buffer(std::string(text)));
-  beast::flat_buffer buffer;
-  ws.read(buffer);
-  return boost::json::parse(beast::buffers_to_string(buffer.data()));
+  this->control_service->AllocateRegion(size);
 }
 
-template<typename Message>
-auto make_rpc(websocket::stream<tcp::socket> &ws,
-  Message const &m,
-  FAM::request::type const type)
+void FAM::client::FAM_control::create_connection()
 {
-  using namespace boost::json;
-  auto const jv = value_from(m);
-  value const message = { { "type", type_to_string(type) }, { "message", jv } };
-  auto const resp = transmit_then_recv(ws, message);
-  auto const status =
-    string_to_status(value_to<std::string>(resp.at("status")));
-  if (status == FAM::response::status::FAIL)
-    throw std::runtime_error("rpc: status FAIL");
-  auto const resp_val = resp.at("response");
-  return value_to<typename Message::response_type>(resp_val);
+  this->RDMA_service->create_connection();
 }
 
-}// namespace
-
-RPC_client::RPC_client(std::string host, std::string port)
+void *FAM::client::FAM_control::create_region(const std::uint64_t t_size,
+  const bool use_HP,
+  const bool write_allowed)
 {
-  auto const results = resolver.resolve(host, port);
-  auto ep = net::connect(ws.next_layer(), results);
-  host += ':' + std::to_string(ep.port());
-  ws.set_option(
-    websocket::stream_base::decorator([](websocket::request_type &req) {
-      req.set(http::field::user_agent,
-        std::string(BOOST_BEAST_VERSION_STRING) + " websocket-client-coro");
-    }));
-  ws.handshake(host, "/");
-}
-
-RPC_client::~RPC_client() { this->ws.close(websocket::close_code::normal); }
-
-FAM::response::ping RPC_client::ping()
-{
-  return make_rpc(this->ws, FAM::request::ping{}, FAM::request::type::PING);
-}
-FAM::response::allocate_region RPC_client::allocate_region(FAM::request::allocate_region const req)
-{
-  return make_rpc(this->ws, req, FAM::request::type::ALLOCATE_REGION);
-}
-FAM::response::mmap_file RPC_client::mmap_file()
-{
-  throw std::runtime_error("Not yet implemented");
-}
-FAM::response::create_QP RPC_client::create_QP()
-{
-  throw std::runtime_error("Not yet implemented");
+  return this->RDMA_service->create_region(t_size, use_HP, write_allowed);
 }

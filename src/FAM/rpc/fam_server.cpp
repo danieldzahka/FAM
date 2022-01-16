@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <chrono>
 
 #include <grpc/support/log.h>
 #include <grpcpp/grpcpp.h>
@@ -147,15 +148,20 @@ private:
 
   void HandleRpcs()
   {
+    using namespace std::literals;
     // Spawn a new CallData instance to serve new clients.
     (new AllocateRegionHandler(&service_, cq_.get()))->Proceed();
     (new PingHandler(&service_, cq_.get()))->Proceed();
     void *tag;// uniquely identifies a request.
     bool ok;
     while (true) {
-      GPR_ASSERT(cq_->Next(&tag, &ok));
-      GPR_ASSERT(ok);
-      static_cast<async_state_machine *>(tag)->Proceed();
+      auto const deadline = std::chrono::system_clock::now() + 500ms;
+      auto const ret = cq_->AsyncNext(&tag, &ok, deadline);
+   
+      if (ret == grpc::CompletionQueue::NextStatus::GOT_EVENT) {
+        GPR_ASSERT(ok);
+        static_cast<async_state_machine *>(tag)->Proceed();
+      }
     }
   }
 
