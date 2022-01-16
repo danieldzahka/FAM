@@ -187,3 +187,28 @@ FAM::RDMA::RDMA_mem::~RDMA_mem()
   spdlog::debug("~RDMA_mem()");
   if (rdma_dereg_mr(this->mr)) spdlog::error("rdma_dereg failed");
 }
+
+void FAM::RDMA::poll_cq(
+  std::vector<std::unique_ptr<rdma_cm_id, FAM::RDMA::id_deleter>> &cm_ids,
+  std::atomic<bool> &keep_spinning) noexcept
+{
+  constexpr auto k = 10;
+  struct ibv_cq *cq;
+  struct ibv_wc wc[k];
+  constexpr unsigned long batch = 1 << 10;
+  unsigned long n_comp = 0;
+
+  while (keep_spinning) {
+    for (unsigned long iter = 0; iter < batch; ++iter) {
+      for (auto &id : cm_ids) {
+        cq = id->send_cq;
+        if (int n = ibv_poll_cq(cq, k, wc)) {
+          for (int i = 0; i < n; ++i) {
+            n_comp += static_cast<unsigned long>(n);
+            if (wc[i].status != IBV_WC_SUCCESS) { return; }
+          }
+        }
+      }
+    }
+  }
+}

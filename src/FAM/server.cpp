@@ -52,10 +52,10 @@ void rdma_handle_event(rdma_cm_event const &event_copy, session &s)
     auto const err = rdma_accept(event_copy.id, &params);
     if (err) throw std::runtime_error("rdma_accept() failed!");
 
-    spdlog::debug("id {} id->verbs {} id->pd {}",
-      (void *)(event_copy.id),
-      (void *)(event_copy.id)->verbs,
-      (void *)(event_copy.id)->pd);
+    // spdlog::debug("id {} id->verbs {} id->pd {}",
+    //   (void *)(event_copy.id),
+    //   (void *)(event_copy.id)->verbs,
+    //   (void *)(event_copy.id)->pd);
 
     s.id->pd = event_copy.id->pd;// ->pd;// grab this if null in session
   } else if (event_copy.event == RDMA_CM_EVENT_ESTABLISHED) {// Runs on both
@@ -136,10 +136,10 @@ public:
 
     session s{id.get()};
 
-    spdlog::debug("listen id {} id->verbs {} id->pd {}",
-      (void *)(s.id),
-      (void *)(s.id)->verbs,
-      (void *)(s.id)->pd);
+    // spdlog::debug("listen id {} id->verbs {} id->pd {}",
+    //   (void *)(s.id),
+    //   (void *)(s.id)->verbs,
+    //   (void *)(s.id)->pd);
 
     HandleRpcs(ec.get(), s);
   }

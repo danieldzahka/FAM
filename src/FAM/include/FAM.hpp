@@ -15,19 +15,32 @@ namespace client {
     std::unique_ptr<RDMA_service_impl> RDMA_service;
 
   public:
+    struct remote_region
+    {
+      std::uint64_t addr;
+      std::uint64_t length;
+    };
+
+    struct local_region
+    {
+      void *addr;
+      std::uint64_t length;
+    };
+
     FAM_control(std::string const &control_addr,
       std::string const &RDMA_addr,
-      std::string const &RDMA_port);
+      std::string const &RDMA_port,
+      int const rdma_channels);
     ~FAM_control();
 
     // Control services
     void ping();
-    void allocate_region(std::uint64_t size);
-    void mmap_file();
+    remote_region allocate_region(std::uint64_t size);
+    remote_region mmap_file();
 
     // RDMA services
-    void create_connection();
-    void *create_region(std::uint64_t const t_size,
+    // void create_connection();
+    local_region create_region(std::uint64_t const t_size,
       bool const use_HP,
       bool const write_allowed);
 

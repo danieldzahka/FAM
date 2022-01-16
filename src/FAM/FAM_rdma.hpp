@@ -8,9 +8,11 @@
 #include <stdexcept>
 #include <type_traits>
 #include <cstring>
+#include <thread>
+#include <atomic>
 
 #include "util.hpp"
-// #include <spdlog/spdlog.h> //DELETE
+#include <spdlog/spdlog.h>
 
 namespace FAM {
 namespace RDMA {
@@ -102,6 +104,11 @@ namespace RDMA {
     ~RDMA_mem();
   };
 
+  void poll_cq(
+    std::vector<std::unique_ptr<rdma_cm_id, FAM::RDMA::id_deleter>> &cm_ids,
+    std::atomic<bool> &keep_spinning) noexcept;
+
+
 }// namespace RDMA
 }// namespace FAM
 
@@ -111,18 +118,33 @@ class FAM::client::FAM_control::RDMA_service_impl
   std::string host;
   std::string port;
   std::vector<std::unique_ptr<FAM::RDMA::RDMA_mem>> regions;
-
-public:
   std::vector<decltype(FAM::RDMA::create_id(ec.get()))> ids;
-
-  RDMA_service_impl(std::string const &t_host, std::string const &t_port)
-    : ec{ FAM::RDMA::create_ec() }, host{ t_host }, port{ t_port }
-  {}
-
-  RDMA_service_impl(const RDMA_service_impl &) = delete;
-  RDMA_service_impl &operator=(const RDMA_service_impl &) = delete;
+  std::thread poller;
+  std::atomic<bool> keep_spinning = true;
 
   void create_connection();
+
+public:
+  RDMA_service_impl(std::string const &t_host,
+    std::string const &t_port,
+    int const channels)
+    : ec{ FAM::RDMA::create_ec() }, host{ t_host }, port{ t_port }
+  {
+    for (int i = 0; i < channels; ++i) this->create_connection();
+    this->poller = std::thread(
+      FAM::RDMA::poll_cq, std::ref(this->ids), std::ref(this->keep_spinning));
+  }
+
+  ~RDMA_service_impl()
+  {
+    this->keep_spinning = false;
+    this->poller.join();
+    spdlog::info("joined comm thread");
+  }
+
+  RDMA_service_impl(const RDMA_service_impl &) = delete;
+  RDMA_service_impl &operator=(const RDMA_service_impl &) = delete;  
+
   void *create_region(std::uint64_t const t_size,
     bool const use_HP,
     bool const write_allowed);

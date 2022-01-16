@@ -2,6 +2,5 @@
 #define _CONSTANTS_H_
 
 #cmakedefine MEMADDR "@MEMADDR@"
-#cmakedefine PORT "@PORT@"
 
 #endif
