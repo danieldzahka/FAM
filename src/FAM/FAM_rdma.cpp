@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <rdma/rdma_verbs.h>
+#include <utility>
 
 #include <spdlog/spdlog.h>
 
@@ -93,76 +94,80 @@ void FAM::client::FAM_control::RDMA_service_impl::create_connection()
   this->ids.push_back(std::move(t_id));
 }
 
-void *FAM::client::FAM_control::RDMA_service_impl::create_region(
-  std::uint64_t const t_size,
-  bool const use_HP,
-  bool const write_allowed)
+std::pair<void *, uint32_t>
+  FAM::client::FAM_control::RDMA_service_impl::create_region(
+    std::uint64_t const t_size,
+    bool const use_HP,
+    bool const write_allowed)
 {
   if (this->ids.size() == 0) throw std::runtime_error("No rdma_cm_id's to use");
   auto id = this->ids.front().get();
   this->regions.emplace_back(
     std::make_unique<FAM::RDMA::RDMA_mem>(id, t_size, use_HP, write_allowed));
-  auto p = this->regions.back()->p.get();
-  return p;
+  auto const p = this->regions.back()->p.get();
+  auto const lkey = this->regions.back()->mr->lkey;
+  return std::make_pair(p, lkey);
 }
 
-void FAM::client::FAM_control::RDMA_service_impl::read(void *laddr,
-  void *raddr,
-  uint32_t length) noexcept
+namespace {
+auto prep_wr(uint64_t laddr,
+  uint64_t raddr,
+  uint32_t length,
+  uint32_t lkey,
+  uint32_t rkey,
+  ibv_wr_opcode op,
+  ibv_send_flags flags) noexcept
 {
-  // struct ibv_send_wr wr;
-  // struct ibv_sge sge;
-  // memset(&wr, 0, sizeof(wr));// maybe optimize away
+  struct ibv_send_wr wr;
+  struct ibv_sge sge;
+  memset(&wr, 0, sizeof(wr));// maybe optimize away
 
-  // wr.opcode = IBV_WR_RDMA_READ;
-  // wr.send_flags = IBV_SEND_SIGNALED;// can change for selective signaling
-  // wr.wr.rdma.remote_addr = ;
-  // wr.wr.rdma.rkey = ;
+  wr.opcode = op;
+  wr.send_flags = flags;// can change for selective signaling
+  wr.wr.rdma.remote_addr = raddr;
+  wr.wr.rdma.rkey = rkey;
 
-  // wr.sg_list = &sge;
-  // wr.num_sge = 1;
-  // sge.addr = reinterpret_cast<uintptr_t>(buffer);
-  // sge.length = length;
-  // sge.lkey = ctx->heap_mr->lkey;
+  wr.sg_list = &sge;
+  wr.num_sge = 1;
+  sge.addr = laddr;
+  sge.length = length;
+  sge.lkey = lkey;
+
+  return std::make_pair(wr, sge);
+}
+}// namespace
+
+void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
+  uint64_t raddr,
+  uint32_t length,
+  uint32_t lkey,
+  uint32_t rkey,
+  unsigned long channel) noexcept
+{
+  auto id = this->ids[channel].get();
+  auto [wr, sge] = prep_wr(
+    laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_READ, IBV_SEND_SIGNALED);
+  struct ibv_send_wr *bad_wr = nullptr;
+
+  auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
+  if (ret) spdlog::error("ibv_post_send() failed (read)");
 }
 
-void FAM::client::FAM_control::RDMA_service_impl::write(void *laddr,
-  void *raddr,
-  uint32_t length) noexcept
-{}
+void FAM::client::FAM_control::RDMA_service_impl::write(uint64_t laddr,
+  uint64_t raddr,
+  uint32_t length,
+  uint32_t lkey,
+  uint32_t rkey,
+  unsigned long channel) noexcept
+{
+  auto id = this->ids[channel].get();
+  auto [wr, sge] = prep_wr(
+    laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_WRITE, IBV_SEND_SIGNALED);
+  struct ibv_send_wr *bad_wr = nullptr;
 
-
-// FAM::RDMA::client::client(std::string const &t_host, std::string const
-// &t_port)
-//   : pimpl{ std::make_unique<FAM::RDMA::client_impl>(t_host, t_port) }
-// {}
-
-// FAM::RDMA::client::~client() = default;
-
-// void FAM::RDMA::client::create_connection()
-// {
-//   this->pimpl->create_connection();
-// }
-
-// void *FAM::RDMA::client::create_region(std::uint64_t const t_size,
-//   bool const use_HP,
-//   bool const write_allowed)
-// {
-//   return this->pimpl->create_region(t_size, use_HP, write_allowed);
-// }
-
-// void FAM::RDMA::client::read(void *laddr, void *raddr, uint32_t length)
-// noexcept
-// {
-//   this->pimpl->read(laddr, raddr, length);
-// }
-
-// void FAM::RDMA::client::write(void *laddr,
-//   void *raddr,
-//   uint32_t length) noexcept
-// {
-//   this->pimpl->write(laddr, raddr, length);
-// }
+  auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
+  if (ret) spdlog::error("ibv_post_send() failed (write)");
+}
 
 FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,
   std::uint64_t const t_size,
@@ -173,10 +178,15 @@ FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,
   spdlog::debug("RDMA_mem()");
   auto ptr = p.get();
   this->mr = [=]() {
-    if (write_allowed)
-      return rdma_reg_write(id, ptr, t_size);
-    else
-      return rdma_reg_read(id, ptr, t_size);
+    return ibv_reg_mr(id->pd,
+      ptr,
+      t_size,
+      IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE
+        | IBV_ACCESS_REMOTE_READ);
+    // if (write_allowed)
+    //   return rdma_reg_write(id, ptr, t_size);
+    // else
+    //   return rdma_reg_read(id, ptr, t_size);
   }();
 
   if (!this->mr) throw std::runtime_error("rdma_reg() failed!");
@@ -190,13 +200,12 @@ FAM::RDMA::RDMA_mem::~RDMA_mem()
 
 void FAM::RDMA::poll_cq(
   std::vector<std::unique_ptr<rdma_cm_id, FAM::RDMA::id_deleter>> &cm_ids,
-  std::atomic<bool> &keep_spinning) noexcept
+  std::atomic<bool> &keep_spinning)
 {
   constexpr auto k = 10;
   struct ibv_cq *cq;
   struct ibv_wc wc[k];
   constexpr unsigned long batch = 1 << 10;
-  unsigned long n_comp = 0;
 
   while (keep_spinning) {
     for (unsigned long iter = 0; iter < batch; ++iter) {
@@ -204,8 +213,10 @@ void FAM::RDMA::poll_cq(
         cq = id->send_cq;
         if (int n = ibv_poll_cq(cq, k, wc)) {
           for (int i = 0; i < n; ++i) {
-            n_comp += static_cast<unsigned long>(n);
-            if (wc[i].status != IBV_WC_SUCCESS) { return; }
+            if (wc[i].status != IBV_WC_SUCCESS) {
+              spdlog::error("poll_cq: Completion Status is not success");
+              throw std::runtime_error("ibv_poll_cq() failed");
+            }
           }
         }
       }

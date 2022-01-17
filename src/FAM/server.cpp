@@ -206,9 +206,11 @@ private:
       try {
         s.client_regions.push_back(
           std::make_unique<FAM::RDMA::RDMA_mem>(s.id, length, false, true));
-        auto ptr = reinterpret_cast<uint64_t>(s.client_regions.back()->p.get());
+        auto const ptr = reinterpret_cast<uint64_t>(s.client_regions.back()->p.get());
+        auto const rkey = s.client_regions.back()->mr->rkey;
         reply_.set_addr(ptr);
         reply_.set_length(length);
+        reply_.set_rkey(rkey);
 
         responder_.Finish(reply_, Status::OK, this);
       } catch (std::exception const &e) {

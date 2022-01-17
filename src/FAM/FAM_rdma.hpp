@@ -12,7 +12,6 @@
 #include <atomic>
 
 #include "util.hpp"
-#include <spdlog/spdlog.h>
 
 namespace FAM {
 namespace RDMA {
@@ -106,7 +105,7 @@ namespace RDMA {
 
   void poll_cq(
     std::vector<std::unique_ptr<rdma_cm_id, FAM::RDMA::id_deleter>> &cm_ids,
-    std::atomic<bool> &keep_spinning) noexcept;
+    std::atomic<bool> &keep_spinning);
 
 
 }// namespace RDMA
@@ -139,18 +138,28 @@ public:
   {
     this->keep_spinning = false;
     this->poller.join();
-    spdlog::info("joined comm thread");
   }
 
   RDMA_service_impl(const RDMA_service_impl &) = delete;
-  RDMA_service_impl &operator=(const RDMA_service_impl &) = delete;  
+  RDMA_service_impl &operator=(const RDMA_service_impl &) = delete;
 
-  void *create_region(std::uint64_t const t_size,
+  std::pair<void *, uint32_t> create_region(std::uint64_t const t_size,
     bool const use_HP,
     bool const write_allowed);
 
-  void read(void *laddr, void *raddr, uint32_t length) noexcept;
-  void write(void *laddr, void *raddr, uint32_t length) noexcept;
+  void read(uint64_t laddr,
+    uint64_t raddr,
+    uint32_t length,
+    uint32_t lkey,
+    uint32_t rkey,
+    unsigned long channel) noexcept;
+
+  void write(uint64_t laddr,
+    uint64_t raddr,
+    uint32_t length,
+    uint32_t lkey,
+    uint32_t rkey,
+    unsigned long channel) noexcept;
 };
 
 #endif

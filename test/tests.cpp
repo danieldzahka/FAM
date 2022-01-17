@@ -3,6 +3,9 @@
 #include <constants.hpp>
 #include <string>
 
+#include <chrono>
+#include <thread>
+
 namespace {
 const std::string memserver_addr = MEMADDR;
 const std::string rdma_host = "192.168.12.2";
@@ -42,4 +45,17 @@ TEST_CASE("Client Create RDMA Buffer", "[RDMA]")
   FAM_control client{ memserver_addr, rdma_host, rdma_port, 1 };
 
   REQUIRE_NOTHROW(client.create_region(771, false, false));
+}
+
+TEST_CASE("RDMA Write", "[RDMA]")
+{
+  using namespace FAM::client;
+  FAM_control client{ memserver_addr, rdma_host, rdma_port, 1 };
+
+  auto const [laddr, l1, lkey] = client.create_region(1024, false, false);
+  auto const [raddr, l2, rkey] = client.allocate_region(1024);
+
+  volatile int* p = reinterpret_cast<int volatile *>(laddr);
+  *p = 41;
+  client.read(const_cast<int*>(p), raddr, 4, lkey, rkey, 0);
 }

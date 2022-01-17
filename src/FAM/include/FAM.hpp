@@ -17,14 +17,16 @@ namespace client {
   public:
     struct remote_region
     {
-      std::uint64_t addr;
+      std::uint64_t raddr;
       std::uint64_t length;
+      std::uint32_t rkey;
     };
 
     struct local_region
     {
-      void *addr;
+      void *laddr;
       std::uint64_t length;
+      std::uint32_t lkey;
     };
 
     FAM_control(std::string const &control_addr,
@@ -39,14 +41,24 @@ namespace client {
     remote_region mmap_file();
 
     // RDMA services
-    // void create_connection();
     local_region create_region(std::uint64_t const t_size,
       bool const use_HP,
       bool const write_allowed);
 
     // RDMA Dataplane
-    void read(void *laddr, void *raddr, uint32_t length) noexcept;
-    void write(void *laddr, void *raddr, uint32_t length) noexcept;
+    void read(void *laddr,
+      uint64_t raddr,
+      uint32_t length,
+      uint32_t lkey,
+      uint32_t rkey,
+      unsigned long channel) noexcept;
+
+    void write(void *laddr,
+      uint64_t raddr,
+      uint32_t length,
+      uint32_t lkey,
+      uint32_t rkey,
+      unsigned long channel) noexcept;
   };
 }// namespace client
 

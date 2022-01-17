@@ -17,6 +17,7 @@ message AllocateRegionRequest {
 message AllocateRegionReply {
   fixed64 addr = 1;
   fixed64 length = 2;
+  fixed32 rkey = 3;
 }
 
 message MmapFileRequest {
@@ -25,4 +26,5 @@ message MmapFileRequest {
 message MmapFileReply {
   fixed64 addr = 1;
   fixed64 length = 2;
+  fixed32 rkey = 3;
 }

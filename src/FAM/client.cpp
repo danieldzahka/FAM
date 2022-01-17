@@ -41,7 +41,7 @@ public:
     ClientContext context;
     auto const status = stub_->AllocateRegion(&context, request, &reply);
 
-    if (status.ok()) return std::make_pair(reply.addr(), reply.length());
+    if (status.ok()) return std::make_tuple(reply.addr(), reply.length(), reply.rkey());
 
     throw std::runtime_error(status.error_message());
   }
@@ -71,21 +71,35 @@ void FAM::client::FAM_control::ping() { this->control_service->Ping(); }
 FAM::client::FAM_control::remote_region
   FAM::client::FAM_control::allocate_region(std::uint64_t size)
 {
-  auto const [addr, length] = this->control_service->AllocateRegion(size);
-  return FAM::client::FAM_control::remote_region{ addr, length };
+  auto const [addr, length, rkey] = this->control_service->AllocateRegion(size);
+  return FAM::client::FAM_control::remote_region{ addr, length, rkey };
 }
-
-// void FAM::client::FAM_control::create_connection()
-// {
-//   this->RDMA_service->create_connection();
-// }
 
 FAM::client::FAM_control::local_region FAM::client::FAM_control::create_region(
   const std::uint64_t t_size,
   const bool use_HP,
   const bool write_allowed)
 {
-  auto addr = this->RDMA_service->create_region(t_size, use_HP, write_allowed);
-  auto length = t_size;
-  return FAM::client::FAM_control::local_region{ addr, length };
+  auto const [addr, lkey] = this->RDMA_service->create_region(t_size, use_HP, write_allowed);
+  auto const length = t_size;
+  return FAM::client::FAM_control::local_region{ addr, length, lkey };
+}
+
+void FAM::client::FAM_control::read(void *laddr,
+  uint64_t raddr,
+  uint32_t length,
+  uint32_t lkey,
+  uint32_t rkey,
+  unsigned long channel = 0) noexcept
+{
+  this->RDMA_service->read(reinterpret_cast<uint64_t>(laddr), raddr, length, lkey, rkey, channel);
+}
+
+void FAM::client::FAM_control::write(void *laddr,
+  uint64_t raddr,
+  uint32_t length,
+  uint32_t lkey,
+  uint32_t rkey,
+  unsigned long channel = 0) noexcept {
+  this->RDMA_service->write(reinterpret_cast<uint64_t>(laddr), raddr, length, lkey, rkey, channel);
 }
