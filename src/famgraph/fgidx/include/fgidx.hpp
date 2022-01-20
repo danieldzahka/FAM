@@ -10,10 +10,12 @@ class dense_idx
 {
   std::unique_ptr<uint64_t[]> idx;
 
-  explicit dense_idx(uint64_t[]);
-  explicit dense_idx(std::unique_ptr<uint64_t[]>);
+  dense_idx(uint64_t[], uint32_t const t_v_max);
+  dense_idx(std::unique_ptr<uint64_t[]>, uint32_t const t_v_max);
 
 public:
+  uint32_t const v_max;
+  
   struct half_interval
   {
     uint64_t const begin;

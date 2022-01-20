@@ -10,9 +10,11 @@ namespace {
 
 TEST_CASE("Test .idx reading", "[fgidx]")
 {
-  //uint32_t const v_max = 5;
+  uint32_t const v_max = 5;
   uint64_t const edges = 6;
   auto const idx = fgidx::dense_idx::make_dense_idx(fgidx_testfile, edges);
+
+  REQUIRE(v_max == idx.v_max);
   
   REQUIRE(idx[0].begin == 0);
   REQUIRE(idx[0].end_exclusive == 3);

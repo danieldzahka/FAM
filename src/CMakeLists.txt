@@ -1,5 +1,5 @@
 add_subdirectory(FAM)
-add_subdirectory(FAM-Graph)
+add_subdirectory(famgraph)
 
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)

@@ -3,6 +3,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
+#include <boost/numeric/conversion/cast.hpp>
+
 namespace {
 auto get_num_verts(std::string const &file)
 {
@@ -15,7 +17,7 @@ auto get_num_verts(std::string const &file)
   }
   throw std::runtime_error("make_dense_idx() can't find file");
 }
-}
+}// namespace
 
 fgidx::dense_idx fgidx::dense_idx::make_dense_idx(std::string const &filepath,
   uint64_t const n_edges)
@@ -36,13 +38,16 @@ fgidx::dense_idx fgidx::dense_idx::make_dense_idx(std::string const &filepath,
       throw std::runtime_error("can't read index data");
     }
   }
-  
-  return fgidx::dense_idx{ idx };
+
+  return fgidx::dense_idx{ idx, boost::numeric_cast<uint32_t>(verts - 1) };
 }
 
-fgidx::dense_idx::dense_idx(uint64_t t_idx[]) : idx{ t_idx } {}
-fgidx::dense_idx::dense_idx(std::unique_ptr<uint64_t[]> t_idx)
-  : idx{ std::move(t_idx) }
+fgidx::dense_idx::dense_idx(uint64_t t_idx[], uint32_t const t_v_max)
+  : idx{ t_idx }, v_max{ t_v_max }
+{}
+fgidx::dense_idx::dense_idx(std::unique_ptr<uint64_t[]> t_idx,
+  uint32_t const t_v_max)
+  : idx{ std::move(t_idx)}, v_max{ t_v_max }
 {}
 
 fgidx::dense_idx::half_interval fgidx::dense_idx::operator[](
