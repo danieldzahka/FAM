@@ -38,7 +38,7 @@ namespace client {
     // Control services
     void ping();
     remote_region allocate_region(std::uint64_t size);
-    remote_region mmap_file();
+    remote_region mmap_remote_file(std::string const &filepath);
 
     // RDMA services
     local_region create_region(std::uint64_t const t_size,

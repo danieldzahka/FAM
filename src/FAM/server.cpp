@@ -1,5 +1,6 @@
 #include <FAM.hpp>
 #include "FAM_rdma.hpp"
+#include "util.hpp"
 
 #include <cstdlib>
 #include <functional>
@@ -224,6 +225,54 @@ private:
     }
   };
 
+  class MmapFileHandler : public async_state_machine
+  {
+    fam::MmapFileRequest request_;
+    fam::MmapFileReply reply_;
+    ServerAsyncResponseWriter<fam::MmapFileReply> responder_;
+    session &s;
+
+  public:
+    MmapFileHandler(FAMController::AsyncService *service,
+      ServerCompletionQueue *cq,
+      session &t_s)
+      : async_state_machine(service, cq), responder_(&ctx_), s{ t_s }
+    {}
+
+    void request() override
+    {
+      service_->RequestMmapFile(&ctx_, &request_, &responder_, cq_, cq_, this);
+    };
+    void handle() override
+    {
+      (new MmapFileHandler(service_, cq_, s))->Proceed();
+
+      auto const filename = request_.path();
+      auto const length = FAM::Util::file_size(filename);
+
+      try {
+        s.client_regions.push_back(
+          std::make_unique<FAM::RDMA::RDMA_mem>(s.id, length, false, true));
+        auto const ptr = s.client_regions.back()->p.get();
+        auto const rkey = s.client_regions.back()->mr->rkey;
+
+        FAM::Util::copy_file(ptr, filename, length);
+
+        reply_.set_addr(reinterpret_cast<uint64_t>(ptr));
+        reply_.set_length(length);
+        reply_.set_rkey(rkey);
+
+        responder_.Finish(reply_, Status::OK, this);
+      } catch (std::exception const &e) {
+        responder_.Finish(reply_,
+          Status(grpc::StatusCode::ABORTED, "rdma region create failed"),
+          this);
+        spdlog::error("Region creation failed!");
+      }
+      status_ = FINISH;
+    }
+  };
+
   class PingHandler : public async_state_machine
   {
     fam::PingRequest request_;
@@ -252,12 +301,13 @@ private:
     fam::EndSessionRequest request_;
     fam::EndSessionReply reply_;
     ServerAsyncResponseWriter<fam::EndSessionReply> responder_;
-    session & s;
-    
+    session &s;
+
   public:
     EndSessionHandler(FAMController::AsyncService *service,
-                      ServerCompletionQueue *cq, session &t_s)
-      : async_state_machine(service, cq), responder_(&ctx_), s{t_s}
+      ServerCompletionQueue *cq,
+      session &t_s)
+      : async_state_machine(service, cq), responder_(&ctx_), s{ t_s }
     {}
 
     void request() override
@@ -281,6 +331,7 @@ private:
     (new AllocateRegionHandler(&service_, cq_.get(), s))->Proceed();
     (new PingHandler(&service_, cq_.get()))->Proceed();
     (new EndSessionHandler(&service_, cq_.get(), s))->Proceed();
+    (new MmapFileHandler(&service_, cq_.get(), s))->Proceed();
     void *tag;// uniquely identifies a request.
     bool ok;
     while (true) {

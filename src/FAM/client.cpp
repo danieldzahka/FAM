@@ -49,6 +49,20 @@ public:
     throw std::runtime_error(status.error_message());
   }
 
+  auto MmapFile(std::string const &filepath)
+  {
+    fam::MmapFileRequest request;
+    request.set_path(filepath);
+    fam::MmapFileReply reply;
+    ClientContext context;
+    auto const status = stub_->MmapFile(&context, request, &reply);
+
+    if (status.ok())
+      return std::make_tuple(reply.addr(), reply.length(), reply.rkey());
+
+    throw std::runtime_error(status.error_message());
+  }
+
   void EndSession()
   {
     fam::EndSessionRequest request;
@@ -95,6 +109,14 @@ FAM::client::FAM_control::remote_region
   auto const [addr, length, rkey] = this->control_service->AllocateRegion(size);
   return FAM::client::FAM_control::remote_region{ addr, length, rkey };
 }
+
+FAM::client::FAM_control::remote_region
+  FAM::client::FAM_control::mmap_remote_file(std::string const &filepath)
+{
+  auto const [addr, length, rkey] = this->control_service->MmapFile(filepath);
+  return FAM::client::FAM_control::remote_region{ addr, length, rkey };
+}
+
 
 FAM::client::FAM_control::local_region FAM::client::FAM_control::create_region(
   const std::uint64_t t_size,

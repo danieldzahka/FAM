@@ -8,6 +8,7 @@ target_link_libraries(catch_main PUBLIC Catch2::Catch2)
 target_link_libraries(catch_main PRIVATE project_options)
 
 set(MEMADDR "0.0.0.0:50051" CACHE STRING "IP of Memserver Ethernet Interface")
+set(MMAP_TEST1 "${CMAKE_CURRENT_SOURCE_DIR}/files/mmap_test1" CACHE STRING "blah")
 configure_file("constants.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/constants.hpp")
 
 add_executable(tests tests.cpp)

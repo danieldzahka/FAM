@@ -2,5 +2,5 @@
 #define _CONSTANTS_H_
 
 #cmakedefine MEMADDR "@MEMADDR@"
-
+#cmakedefine MMAP_TEST1 "@MMAP_TEST1@"
 #endif

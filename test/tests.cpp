@@ -6,10 +6,13 @@
 #include <chrono>
 #include <thread>
 
+#include <iostream>
+
 namespace {
 const std::string memserver_addr = MEMADDR;
 const std::string rdma_host = "192.168.12.2";
 const std::string rdma_port = "35287";
+const std::string mmap_test1 = MMAP_TEST1;
 }// namespace
 
 TEST_CASE("RPC Consruction", "[RPC]")
@@ -55,7 +58,29 @@ TEST_CASE("RDMA Write", "[RDMA]")
   auto const [laddr, l1, lkey] = client.create_region(1024, false, false);
   auto const [raddr, l2, rkey] = client.allocate_region(1024);
 
-  volatile int* p = reinterpret_cast<int volatile *>(laddr);
+  volatile int *p = reinterpret_cast<int volatile *>(laddr);
   *p = 41;
-  client.read(const_cast<int*>(p), raddr, 4, lkey, rkey, 0);
+  client.read(const_cast<int *>(p), raddr, 4, lkey, rkey, 0);
+}
+
+TEST_CASE("RDMA mmap", "[RDMA]")
+{
+  using namespace FAM::client;
+  FAM_control client{ memserver_addr, rdma_host, rdma_port, 1 };
+
+  uint64_t constexpr filesize = 40;// bytes
+
+  auto const [laddr, l1, lkey] = client.create_region(filesize, false, false);
+  auto const [raddr, l2, rkey] = client.mmap_remote_file(mmap_test1);
+
+  REQUIRE(l2 == filesize);
+
+  volatile int *p = reinterpret_cast<int volatile *>(laddr);
+  constexpr auto magic = 0x0FFFFFFF;
+  *p = magic;
+  client.read(const_cast<int *>(p), raddr, filesize, lkey, rkey, 0);
+
+  while (*p == magic) {}// let read finish
+
+  for (int i = 0; i < 10; ++i) REQUIRE(p[i] == i+1);
 }
