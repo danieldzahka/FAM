@@ -6,8 +6,6 @@
 #include <chrono>
 #include <thread>
 
-#include <iostream>
-
 namespace {
 const std::string memserver_addr = MEMADDR;
 const std::string rdma_host = "192.168.12.2";
@@ -59,8 +57,13 @@ TEST_CASE("RDMA Write", "[RDMA]")
   auto const [raddr, l2, rkey] = client.allocate_region(1024);
 
   volatile int *p = reinterpret_cast<int volatile *>(laddr);
-  *p = 41;
+  constexpr auto magic = 0x0FFFFFFF;
+  *p = magic;
+
   client.read(const_cast<int *>(p), raddr, 4, lkey, rkey, 0);
+  while (*p == magic) {}
+
+  REQUIRE(*p == 0);
 }
 
 TEST_CASE("RDMA mmap", "[RDMA]")
@@ -78,9 +81,9 @@ TEST_CASE("RDMA mmap", "[RDMA]")
   volatile int *p = reinterpret_cast<int volatile *>(laddr);
   constexpr auto magic = 0x0FFFFFFF;
   *p = magic;
+
   client.read(const_cast<int *>(p), raddr, filesize, lkey, rkey, 0);
+  while (*p == magic) {}
 
-  while (*p == magic) {}// let read finish
-
-  for (int i = 0; i < 10; ++i) REQUIRE(p[i] == i+1);
+  for (int i = 0; i < 10; ++i) REQUIRE(p[i] == i);
 }
