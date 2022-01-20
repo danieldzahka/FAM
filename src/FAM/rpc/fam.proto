@@ -6,6 +6,7 @@ service FAMController {
   rpc Ping (PingRequest) returns (PingReply) {}
   rpc AllocateRegion (AllocateRegionRequest) returns (AllocateRegionReply) {}
   rpc MmapFile (MmapFileRequest) returns (MmapFileReply) {}
+  rpc EndSession (EndSessionRequest) returns (EndSessionReply) {}
 }
 
 message PingRequest {}
@@ -28,3 +29,6 @@ message MmapFileReply {
   fixed64 length = 2;
   fixed32 rkey = 3;
 }
+
+message EndSessionRequest {}
+message EndSessionReply {}

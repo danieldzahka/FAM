@@ -23,10 +23,10 @@ namespace {
 class session
 {
 public:
-  rdma_cm_id * const id;
+  rdma_cm_id *const id;
   std::vector<std::unique_ptr<FAM::RDMA::RDMA_mem>> client_regions;
 
-  session(rdma_cm_id * t_id) : id{t_id} {}
+  session(rdma_cm_id *t_id) : id{ t_id } {}
 
   session &operator=(const session &) = delete;
   session(const session &) = delete;
@@ -134,7 +134,7 @@ public:
     char *ip = inet_ntoa(reinterpret_cast<sockaddr_in *>(addr)->sin_addr);
     spdlog::debug("Server listening on IPoIB: {}:{}", ip, rdma_port);
 
-    session s{id.get()};
+    session s{ id.get() };
 
     // spdlog::debug("listen id {} id->verbs {} id->pd {}",
     //   (void *)(s.id),
@@ -206,7 +206,8 @@ private:
       try {
         s.client_regions.push_back(
           std::make_unique<FAM::RDMA::RDMA_mem>(s.id, length, false, true));
-        auto const ptr = reinterpret_cast<uint64_t>(s.client_regions.back()->p.get());
+        auto const ptr =
+          reinterpret_cast<uint64_t>(s.client_regions.back()->p.get());
         auto const rkey = s.client_regions.back()->mr->rkey;
         reply_.set_addr(ptr);
         reply_.set_length(length);
@@ -246,12 +247,40 @@ private:
     }
   };
 
-  void HandleRpcs(rdma_event_channel *ec, session& s)
+  class EndSessionHandler : public async_state_machine
+  {
+    fam::EndSessionRequest request_;
+    fam::EndSessionReply reply_;
+    ServerAsyncResponseWriter<fam::EndSessionReply> responder_;
+    session & s;
+    
+  public:
+    EndSessionHandler(FAMController::AsyncService *service,
+                      ServerCompletionQueue *cq, session &t_s)
+      : async_state_machine(service, cq), responder_(&ctx_), s{t_s}
+    {}
+
+    void request() override
+    {
+      service_->RequestEndSession(
+        &ctx_, &request_, &responder_, cq_, cq_, this);
+    };
+    void handle() override
+    {
+      (new EndSessionHandler(service_, cq_, s))->Proceed();
+      this->s.client_regions.clear();
+      status_ = FINISH;
+      responder_.Finish(reply_, Status::OK, this);
+    }
+  };
+
+  void HandleRpcs(rdma_event_channel *ec, session &s)
   {
     using namespace std::literals;
 
     (new AllocateRegionHandler(&service_, cq_.get(), s))->Proceed();
     (new PingHandler(&service_, cq_.get()))->Proceed();
+    (new EndSessionHandler(&service_, cq_.get(), s))->Proceed();
     void *tag;// uniquely identifies a request.
     bool ok;
     while (true) {
