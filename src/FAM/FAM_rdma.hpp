@@ -11,6 +11,7 @@
 #include <thread>
 #include <atomic>
 
+#include <FAM_segment.hpp>
 #include "util.hpp"
 
 namespace FAM {
@@ -109,6 +110,8 @@ namespace RDMA {
 
 
 }// namespace RDMA
+struct WR;
+
 }// namespace FAM
 
 class FAM::client::FAM_control::RDMA_service_impl
@@ -120,25 +123,16 @@ class FAM::client::FAM_control::RDMA_service_impl
   std::vector<decltype(FAM::RDMA::create_id(ec.get()))> ids;
   std::thread poller;
   std::atomic<bool> keep_spinning = true;
+  std::vector<std::unique_ptr<WR[]>> wrs;
 
   void create_connection();
 
 public:
   RDMA_service_impl(std::string const &t_host,
     std::string const &t_port,
-    int const channels)
-    : ec{ FAM::RDMA::create_ec() }, host{ t_host }, port{ t_port }
-  {
-    for (int i = 0; i < channels; ++i) this->create_connection();
-    this->poller = std::thread(
-      FAM::RDMA::poll_cq, std::ref(this->ids), std::ref(this->keep_spinning));
-  }
+    int const channels);
 
-  ~RDMA_service_impl()
-  {
-    this->keep_spinning = false;
-    this->poller.join();
-  }
+  ~RDMA_service_impl();
 
   RDMA_service_impl(const RDMA_service_impl &) = delete;
   RDMA_service_impl &operator=(const RDMA_service_impl &) = delete;
@@ -150,6 +144,12 @@ public:
   void read(uint64_t laddr,
     uint64_t raddr,
     uint32_t length,
+    uint32_t lkey,
+    uint32_t rkey,
+    unsigned long channel) noexcept;
+
+  void read(uint64_t laddr,
+    std::vector<FAM_segment> const &segs,
     uint32_t lkey,
     uint32_t rkey,
     unsigned long channel) noexcept;

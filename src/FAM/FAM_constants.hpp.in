@@ -1,0 +1,10 @@
+#ifndef _FAM_CONSTANTS_H_
+#define _FAM_CONSTANTS_H_
+
+#cmakedefine MAX_OUTSTANDING_WR @MAX_OUTSTANDING_WR@
+
+namespace FAM {
+  constexpr unsigned long max_outstanding_wr = MAX_OUTSTANDING_WR;
+}
+
+#endif // _FAM_CONSTANTS_H_

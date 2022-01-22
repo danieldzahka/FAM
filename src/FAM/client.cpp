@@ -4,11 +4,13 @@
 #include <string>
 #include <iostream>
 #include <memory>
+#include <cassert>
 
 #include <grpcpp/grpcpp.h>
 
 #include "fam.grpc.pb.h"
 #include "FAM_rdma.hpp"
+#include <FAM_constants.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -139,6 +141,19 @@ void FAM::client::FAM_control::read(void *laddr,
   this->RDMA_service->read(
     reinterpret_cast<uint64_t>(laddr), raddr, length, lkey, rkey, channel);
 }
+
+void FAM::client::FAM_control::read(void *laddr,
+  std::vector<FAM::FAM_segment> const &segs,
+  uint32_t lkey,
+  uint32_t rkey,
+  unsigned long channel) noexcept
+{
+  //uphold the narrow calling contract
+  assert(segs.size() <= FAM::max_outstanding_wr);
+  this->RDMA_service->read(
+    reinterpret_cast<uint64_t>(laddr), segs, lkey, rkey, channel);
+}
+
 
 void FAM::client::FAM_control::write(void *laddr,
   uint64_t raddr,

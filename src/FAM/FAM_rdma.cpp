@@ -1,5 +1,6 @@
 #include <FAM.hpp>
 #include "FAM_rdma.hpp"
+#include <FAM_constants.hpp>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -109,23 +110,53 @@ std::pair<void *, uint32_t>
   return std::make_pair(p, lkey);
 }
 
+struct FAM::WR
+{
+  struct ibv_send_wr wr;
+  struct ibv_sge sge;
+};
+
+FAM::client::FAM_control::RDMA_service_impl::RDMA_service_impl(
+  std::string const &t_host,
+  std::string const &t_port,
+  int const channels)
+  : ec{ FAM::RDMA::create_ec() }, host{ t_host }, port{ t_port }
+{
+  for (int i = 0; i < channels; ++i) {
+    this->create_connection();
+    this->wrs.emplace_back(
+      std::unique_ptr<WR[]>(new WR[FAM::max_outstanding_wr]));
+  }
+  this->poller = std::thread(
+    FAM::RDMA::poll_cq, std::ref(this->ids), std::ref(this->keep_spinning));
+}
+
+FAM::client::FAM_control::RDMA_service_impl::~RDMA_service_impl()
+{
+  this->keep_spinning = false;
+  this->poller.join();
+}
+
 namespace {
-auto prep_wr(uint64_t laddr,
+void prep_wr(FAM::WR &t_wr,
+  uint64_t laddr,
   uint64_t raddr,
   uint32_t length,
   uint32_t lkey,
   uint32_t rkey,
   ibv_wr_opcode op,
-  ibv_send_flags flags) noexcept
+  ibv_send_flags flags,
+  ibv_send_wr *next) noexcept
 {
-  struct ibv_send_wr wr;
-  struct ibv_sge sge;
+  ibv_send_wr &wr = t_wr.wr;
+  ibv_sge &sge = t_wr.sge;
   memset(&wr, 0, sizeof(wr));// maybe optimize away
 
   wr.opcode = op;
-  wr.send_flags = flags;// can change for selective signaling
+  wr.send_flags = flags;
   wr.wr.rdma.remote_addr = raddr;
   wr.wr.rdma.rkey = rkey;
+  wr.next = next;
 
   wr.sg_list = &sge;
   wr.num_sge = 1;
@@ -133,9 +164,13 @@ auto prep_wr(uint64_t laddr,
   sge.length = length;
   sge.lkey = lkey;
 
-  return std::make_pair(wr, sge);
+  //  return std::make_pair(wr, sge);
 }
+
+void prep_wrs() {}
+
 }// namespace
+
 
 void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
   uint64_t raddr,
@@ -145,12 +180,35 @@ void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
   unsigned long channel) noexcept
 {
   auto id = this->ids[channel].get();
-  auto [wr, sge] = prep_wr(
-    laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_READ, IBV_SEND_SIGNALED);
+  auto &wr = this->wrs[channel][0];
+  prep_wr(wr,
+    laddr,
+    raddr,
+    length,
+    lkey,
+    rkey,
+    IBV_WR_RDMA_READ,
+    IBV_SEND_SIGNALED,
+    nullptr);
   struct ibv_send_wr *bad_wr = nullptr;
 
-  auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
+  auto ret = ibv_post_send(id->qp, &wr.wr, &bad_wr);
   if (ret) spdlog::error("ibv_post_send() failed (read)");
+}
+
+void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
+  std::vector<FAM::FAM_segment> const &segs,
+  uint32_t lkey,
+  uint32_t rkey,
+  unsigned long channel) noexcept
+{
+  // auto id = this->ids[channel].get();
+  // auto [wr, sge] = prep_wr(
+  //   laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_READ, IBV_SEND_SIGNALED);
+  // struct ibv_send_wr *bad_wr = nullptr;
+
+  // auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
+  // if (ret) spdlog::error("ibv_post_send() failed (read)");
 }
 
 void FAM::client::FAM_control::RDMA_service_impl::write(uint64_t laddr,
@@ -161,11 +219,19 @@ void FAM::client::FAM_control::RDMA_service_impl::write(uint64_t laddr,
   unsigned long channel) noexcept
 {
   auto id = this->ids[channel].get();
-  auto [wr, sge] = prep_wr(
-    laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_WRITE, IBV_SEND_SIGNALED);
+  auto &wr = this->wrs[channel][0];
+  prep_wr(wr,
+    laddr,
+    raddr,
+    length,
+    lkey,
+    rkey,
+    IBV_WR_RDMA_WRITE,
+    IBV_SEND_SIGNALED,
+    nullptr);
   struct ibv_send_wr *bad_wr = nullptr;
 
-  auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
+  auto ret = ibv_post_send(id->qp, &wr.wr, &bad_wr);
   if (ret) spdlog::error("ibv_post_send() failed (write)");
 }
 

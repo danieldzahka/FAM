@@ -3,6 +3,9 @@
 
 #include <string>
 #include <memory>
+#include <vector>
+
+#include <FAM_segment.hpp>
 
 namespace FAM {
 
@@ -49,6 +52,12 @@ namespace client {
     void read(void *laddr,
       uint64_t raddr,
       uint32_t length,
+      uint32_t lkey,
+      uint32_t rkey,
+      unsigned long channel) noexcept;
+
+    void read(void *laddr,
+      std::vector<FAM_segment> const &segs,
       uint32_t lkey,
       uint32_t rkey,
       unsigned long channel) noexcept;
