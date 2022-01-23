@@ -15,12 +15,12 @@ auto get_num_verts(std::string const &file)
     const uint64_t num_vertices = file_size / sizeof(uint64_t);
     return num_vertices;
   }
-  throw std::runtime_error("make_dense_idx() can't find file");
+  throw std::runtime_error("CreateInstance() can't find file");
 }
 }// namespace
 
-fgidx::dense_idx fgidx::dense_idx::make_dense_idx(std::string const &filepath,
-  uint64_t const n_edges)
+fgidx::dense_idx fgidx::dense_idx::CreateInstance(std::string const &filepath,
+  uint64_t n_edges)
 {
   auto const verts = get_num_verts(filepath);
   auto idx = new uint64_t[verts + 1];
@@ -28,7 +28,7 @@ fgidx::dense_idx fgidx::dense_idx::make_dense_idx(std::string const &filepath,
 
   std::ifstream input(filepath, std::ios::binary);
   if (!input)
-    throw std::runtime_error("make_dense_idx(): can't open input stream");
+    throw std::runtime_error("CreateInstance(): can't open input stream");
 
   for (uint64_t i = 0; i < verts; ++i) {
     uint64_t a;
@@ -47,7 +47,7 @@ fgidx::dense_idx::dense_idx(uint64_t t_idx[], uint32_t const t_v_max)
 {}
 fgidx::dense_idx::dense_idx(std::unique_ptr<uint64_t[]> t_idx,
   uint32_t const t_v_max)
-  : idx{ std::move(t_idx)}, v_max{ t_v_max }
+  : idx{ std::move(t_idx) }, v_max{ t_v_max }
 {}
 
 fgidx::dense_idx::half_interval fgidx::dense_idx::operator[](

@@ -2,21 +2,30 @@
 #define __FAMGRAPH_H__
 
 #include <cstdint>
+#include <fgidx.hpp>
 
 namespace famgraph {
-// bfs
-// pagerank
-// CC
-// kcore
-// MIS
-
-struct kcore_result
+class RemoteGraph
 {
-  uint32_t const k;
-  uint32_t const core_size;
+  RemoteGraph(fgidx::dense_idx &&t_idx);
+  fgidx::dense_idx idx_;
+
+public:
+  static RemoteGraph CreateInstance(std::string const &path);
+  class Iterator
+  {
+  };
+};
+class LocalGraph
+{
+  fgidx::dense_idx idx_;
+
+public:
+  class Iterator
+  {
+  };
 };
 
-kcore_result kcore();
 }// namespace famgraph
 
 #endif//__FAMGRAPH_H__

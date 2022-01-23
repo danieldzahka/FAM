@@ -22,7 +22,7 @@ public:
     uint64_t const end_exclusive;
   };
 
-  static dense_idx make_dense_idx(std::string const &filepath,
+  static dense_idx CreateInstance(std::string const &filepath,
     uint64_t n_edges);
 
   half_interval operator[](uint32_t v) const noexcept;
