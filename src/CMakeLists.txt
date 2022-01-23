@@ -7,10 +7,10 @@ find_package(Boost REQUIRED)
 
 add_executable(server server.cpp)
 target_link_libraries(
-  server
-  PRIVATE project_options
-          project_warnings
-          fmt::fmt
-          Boost::program_options
-          spdlog::spdlog
-          FAM)
+        server
+        PRIVATE project_options
+        project_warnings
+        fmt::fmt
+        Boost::program_options
+        spdlog::spdlog
+        FAM)
