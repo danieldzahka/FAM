@@ -167,8 +167,6 @@ void prep_wr(FAM::WR &t_wr,
   //  return std::make_pair(wr, sge);
 }
 
-void prep_wrs() {}
-
 }// namespace
 
 
@@ -202,13 +200,22 @@ void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
   uint32_t rkey,
   unsigned long channel) noexcept
 {
-  // auto id = this->ids[channel].get();
-  // auto [wr, sge] = prep_wr(
-  //   laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_READ, IBV_SEND_SIGNALED);
-  // struct ibv_send_wr *bad_wr = nullptr;
+  auto id = this->ids[channel].get();
+  for (unsigned long i = 0; i < segs.size(); ++i) {
+    auto next = i < segs.size() - 1 ? &this->wrs[channel][i + 1].wr : nullptr;
+    auto const flags = static_cast<const ibv_send_flags>(
+      i == segs.size() - 1 ? IBV_SEND_SIGNALED : 0);
+    auto &WR = this->wrs[channel][i];
+    auto const [raddr, length] = segs[i];
+    prep_wr(
+      WR, laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_READ, flags, next);
+  }
 
-  // auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
-  // if (ret) spdlog::error("ibv_post_send() failed (read)");
+  struct ibv_send_wr *bad_wr = nullptr;
+  auto &wr = this->wrs[channel][0].wr;
+
+  auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
+  if (ret) spdlog::error("ibv_post_send() failed (read)");
 }
 
 void FAM::client::FAM_control::RDMA_service_impl::write(uint64_t laddr,

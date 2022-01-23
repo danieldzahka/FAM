@@ -10,12 +10,12 @@ class dense_idx
 {
   std::unique_ptr<uint64_t[]> idx;
 
-  dense_idx(uint64_t[], uint32_t const t_v_max);
-  dense_idx(std::unique_ptr<uint64_t[]>, uint32_t const t_v_max);
+  dense_idx(uint64_t[], uint32_t t_v_max);
+  dense_idx(std::unique_ptr<uint64_t[]>, uint32_t t_v_max);
 
 public:
   uint32_t const v_max;
-  
+
   struct half_interval
   {
     uint64_t const begin;
@@ -23,9 +23,9 @@ public:
   };
 
   static dense_idx make_dense_idx(std::string const &filepath,
-    uint64_t const n_edges);
+    uint64_t n_edges);
 
-  half_interval operator[](const uint32_t v) const noexcept;
+  half_interval operator[](uint32_t v) const noexcept;
 };
 }// namespace fgidx
 

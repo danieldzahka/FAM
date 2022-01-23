@@ -80,10 +80,24 @@ TEST_CASE("RDMA mmap", "[RDMA]")
 
   volatile int *p = reinterpret_cast<int volatile *>(laddr);
   constexpr auto magic = 0x0FFFFFFF;
-  *p = magic;
 
-  client.read(const_cast<int *>(p), raddr, filesize, lkey, rkey, 0);
-  while (*p == magic) {}
+  SECTION("Single Read")
+  {
+    *p = magic;
+    client.read(const_cast<int *>(p), raddr, filesize, lkey, rkey, 0);
+    while (*p == magic) {}
+  }
+  SECTION("Vector Read")
+  {
+    p[0] = magic;
+    p[5] = magic;
+    // 0-4 5-9
+    auto const length = 5 * sizeof(uint32_t);
+    std::vector<FAM::FAM_segment> v = { FAM::FAM_segment{ raddr, length },
+      FAM::FAM_segment{ raddr + length, length } };
+    client.read(const_cast<int *>(p), raddr, filesize, lkey, rkey, 0);
+    while (p[0] == magic || p[5] == magic) {}
+  }
 
   for (int i = 0; i < 10; ++i) REQUIRE(p[i] == i);
 }
