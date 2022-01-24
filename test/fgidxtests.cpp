@@ -12,7 +12,7 @@ TEST_CASE("Test .idx reading", "[fgidx]")
 {
   uint32_t const v_max = 5;
   uint64_t const edges = 6;
-  auto const idx = fgidx::dense_idx::CreateInstance(fgidx_testfile, edges);
+  auto const idx = fgidx::DenseIndex::CreateInstance(fgidx_testfile, edges);
 
   REQUIRE(v_max == idx.v_max);
 

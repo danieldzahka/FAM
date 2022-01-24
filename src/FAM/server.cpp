@@ -25,7 +25,7 @@ class session
 {
 public:
   rdma_cm_id *const id;
-  std::vector<std::unique_ptr<FAM::RDMA::RDMA_mem>> client_regions;
+  std::vector<std::unique_ptr<FAM::rdma::RdmaMemoryBuffer>> client_regions;
 
   session(rdma_cm_id *t_id) : id{ t_id } {}
 
@@ -49,7 +49,7 @@ void rdma_handle_event(rdma_cm_event const &event_copy, session &s)
     if (rdma_create_qp(event_copy.id, nullptr, &qp_attr))
       throw std::runtime_error("rdma_create_qp() failed!");
 
-    auto params = FAM::RDMA::get_cm_params();
+    auto params = FAM::rdma::RdmaConnParams();
     auto const err = rdma_accept(event_copy.id, &params);
     if (err) throw std::runtime_error("rdma_accept() failed!");
 
@@ -126,10 +126,10 @@ public:
     server_ = builder.BuildAndStart();
     spdlog::info("Server listening on {}", server_address);
 
-    auto ec = FAM::RDMA::create_ec();
-    auto id = FAM::RDMA::create_id(ec.get());
-    FAM::RDMA::bind_addr(id.get());
-    FAM::RDMA::listen(id.get());
+    auto ec = FAM::rdma::CreateEventChannel();
+    auto id = FAM::rdma::CreateRdmaId(ec.get());
+    FAM::rdma::bind_addr(id.get());
+    FAM::rdma::listen(id.get());
     auto const rdma_port = ntohs(rdma_get_src_port(id.get()));
     auto addr = rdma_get_local_addr(id.get());
     char *ip = inet_ntoa(reinterpret_cast<sockaddr_in *>(addr)->sin_addr);
@@ -206,7 +206,8 @@ private:
       auto const length = request_.size();
       try {
         s.client_regions.push_back(
-          std::make_unique<FAM::RDMA::RDMA_mem>(s.id, length, false, true));
+          std::make_unique<FAM::rdma::RdmaMemoryBuffer>(
+            s.id, length, false, true));
         auto const ptr =
           reinterpret_cast<uint64_t>(s.client_regions.back()->p.get());
         auto const rkey = s.client_regions.back()->mr->rkey;
@@ -252,7 +253,8 @@ private:
 
       try {
         s.client_regions.push_back(
-          std::make_unique<FAM::RDMA::RDMA_mem>(s.id, length, false, true));
+          std::make_unique<FAM::rdma::RdmaMemoryBuffer>(
+            s.id, length, false, true));
         auto const ptr = s.client_regions.back()->p.get();
         auto const rkey = s.client_regions.back()->mr->rkey;
 
@@ -353,7 +355,7 @@ private:
 };
 }// namespace
 
-void FAM::server::run(std::string const &host, std::string const &port)
+void FAM::server::Run(std::string const &host, std::string const &port)
 {
   spdlog::set_level(spdlog::level::debug);
   ServerImpl server;

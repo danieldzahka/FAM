@@ -64,10 +64,10 @@ void create_qp(rdma_cm_id *id, ibv_qp_init_attr &qp_attr)
 }
 }// namespace
 
-void FAM::client::FAM_control::RDMA_service_impl::create_connection()
+void FAM::client::FamControl::RdmaServiceImpl::CreateConnection()
 {
   auto chan = ec.get();
-  auto t_id = FAM::RDMA::create_id(chan);
+  auto t_id = FAM::rdma::CreateRdmaId(chan);
   auto id = t_id.get();
 
   resolve_addr(id, this->host, this->port);
@@ -85,7 +85,7 @@ void FAM::client::FAM_control::RDMA_service_impl::create_connection()
   if (event2.event != RDMA_CM_EVENT_ROUTE_RESOLVED)
     throw std::runtime_error("rdma_resolve_addr() failed!");
 
-  auto params = FAM::RDMA::get_cm_params();
+  auto params = FAM::rdma::RdmaConnParams();
   connect(id, params);
 
   auto event3 = get_event(chan);
@@ -96,49 +96,50 @@ void FAM::client::FAM_control::RDMA_service_impl::create_connection()
 }
 
 std::pair<void *, uint32_t>
-  FAM::client::FAM_control::RDMA_service_impl::create_region(
+  FAM::client::FamControl::RdmaServiceImpl::CreateRegion(
     std::uint64_t const t_size,
     bool const use_HP,
     bool const write_allowed)
 {
   if (this->ids.size() == 0) throw std::runtime_error("No rdma_cm_id's to use");
   auto id = this->ids.front().get();
-  this->regions.emplace_back(
-    std::make_unique<FAM::RDMA::RDMA_mem>(id, t_size, use_HP, write_allowed));
+  this->regions.emplace_back(std::make_unique<FAM::rdma::RdmaMemoryBuffer>(
+    id, t_size, use_HP, write_allowed));
   auto const p = this->regions.back()->p.get();
   auto const lkey = this->regions.back()->mr->lkey;
   return std::make_pair(p, lkey);
 }
 
-struct FAM::WR
+struct FAM::IbWorkRequest
 {
   struct ibv_send_wr wr;
   struct ibv_sge sge;
 };
 
-FAM::client::FAM_control::RDMA_service_impl::RDMA_service_impl(
+FAM::client::FamControl::RdmaServiceImpl::RdmaServiceImpl(
   std::string const &t_host,
   std::string const &t_port,
   int const channels)
-  : ec{ FAM::RDMA::create_ec() }, host{ t_host }, port{ t_port }
+  : ec{ FAM::rdma::CreateEventChannel() }, host{ t_host }, port{ t_port }
 {
   for (int i = 0; i < channels; ++i) {
-    this->create_connection();
-    this->wrs.emplace_back(
-      std::unique_ptr<WR[]>(new WR[FAM::max_outstanding_wr]));
+    this->CreateConnection();
+    this->wrs.emplace_back(std::unique_ptr<IbWorkRequest[]>(
+      new IbWorkRequest[FAM::max_outstanding_wr]));
   }
-  this->poller = std::thread(
-    FAM::RDMA::poll_cq, std::ref(this->ids), std::ref(this->keep_spinning));
+  this->poller = std::thread(FAM::rdma::PollCompletionQueue,
+    std::ref(this->ids),
+    std::ref(this->keep_spinning));
 }
 
-FAM::client::FAM_control::RDMA_service_impl::~RDMA_service_impl()
+FAM::client::FamControl::RdmaServiceImpl::~RdmaServiceImpl()
 {
   this->keep_spinning = false;
   this->poller.join();
 }
 
 namespace {
-void prep_wr(FAM::WR &t_wr,
+void prep_wr(FAM::IbWorkRequest &t_wr,
   uint64_t laddr,
   uint64_t raddr,
   uint32_t length,
@@ -170,7 +171,7 @@ void prep_wr(FAM::WR &t_wr,
 }// namespace
 
 
-void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
+void FAM::client::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
   uint64_t raddr,
   uint32_t length,
   uint32_t lkey,
@@ -191,11 +192,11 @@ void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
   struct ibv_send_wr *bad_wr = nullptr;
 
   auto ret = ibv_post_send(id->qp, &wr.wr, &bad_wr);
-  if (ret) spdlog::error("ibv_post_send() failed (read)");
+  if (ret) spdlog::error("ibv_post_send() failed (Read)");
 }
 
-void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
-  std::vector<FAM::FAM_segment> const &segs,
+void FAM::client::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
+  std::vector<FAM::FamSegment> const &segs,
   uint32_t lkey,
   uint32_t rkey,
   unsigned long channel) noexcept
@@ -215,10 +216,10 @@ void FAM::client::FAM_control::RDMA_service_impl::read(uint64_t laddr,
   auto &wr = this->wrs[channel][0].wr;
 
   auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
-  if (ret) spdlog::error("ibv_post_send() failed (read)");
+  if (ret) spdlog::error("ibv_post_send() failed (Read)");
 }
 
-void FAM::client::FAM_control::RDMA_service_impl::write(uint64_t laddr,
+void FAM::client::FamControl::RdmaServiceImpl::Write(uint64_t laddr,
   uint64_t raddr,
   uint32_t length,
   uint32_t lkey,
@@ -239,16 +240,16 @@ void FAM::client::FAM_control::RDMA_service_impl::write(uint64_t laddr,
   struct ibv_send_wr *bad_wr = nullptr;
 
   auto ret = ibv_post_send(id->qp, &wr.wr, &bad_wr);
-  if (ret) spdlog::error("ibv_post_send() failed (write)");
+  if (ret) spdlog::error("ibv_post_send() failed (Write)");
 }
 
-FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,
+FAM::rdma::RdmaMemoryBuffer::RdmaMemoryBuffer(rdma_cm_id *id,
   std::uint64_t const t_size,
   bool const use_HP,
   bool const write_allowed)
   : size{ t_size }, p{ FAM::Util::mmap(t_size, use_HP) }
 {
-  spdlog::debug("RDMA_mem()");
+  spdlog::debug("RdmaMemoryBuffer()");
   auto ptr = p.get();
   this->mr = [=]() {
     return ibv_reg_mr(id->pd,
@@ -265,14 +266,14 @@ FAM::RDMA::RDMA_mem::RDMA_mem(rdma_cm_id *id,
   if (!this->mr) throw std::runtime_error("rdma_reg() failed!");
 }
 
-FAM::RDMA::RDMA_mem::~RDMA_mem()
+FAM::rdma::RdmaMemoryBuffer::~RdmaMemoryBuffer()
 {
-  spdlog::debug("~RDMA_mem()");
+  spdlog::debug("RdmaMemoryBufferryBuffer()");
   if (rdma_dereg_mr(this->mr)) spdlog::error("rdma_dereg failed");
 }
 
-void FAM::RDMA::poll_cq(
-  std::vector<std::unique_ptr<rdma_cm_id, FAM::RDMA::id_deleter>> &cm_ids,
+void FAM::rdma::PollCompletionQueue(
+  std::vector<std::unique_ptr<rdma_cm_id, FAM::rdma::RdmaIdDeleter>> &cm_ids,
   std::atomic<bool> &keep_spinning)
 {
   constexpr auto k = 10;
@@ -287,7 +288,8 @@ void FAM::RDMA::poll_cq(
         if (int n = ibv_poll_cq(cq, k, wc)) {
           for (int i = 0; i < n; ++i) {
             if (wc[i].status != IBV_WC_SUCCESS) {
-              spdlog::error("poll_cq: Completion Status is not success");
+              spdlog::error(
+                "PollCompletionQueue: Completion Status is not success");
               throw std::runtime_error("ibv_poll_cq() failed");
             }
           }

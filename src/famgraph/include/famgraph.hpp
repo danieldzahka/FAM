@@ -7,8 +7,8 @@
 namespace famgraph {
 class RemoteGraph
 {
-  RemoteGraph(fgidx::dense_idx &&t_idx);
-  fgidx::dense_idx idx_;
+  RemoteGraph(fgidx::DenseIndex &&t_idx);
+  fgidx::DenseIndex idx_;
 
 public:
   static RemoteGraph CreateInstance(std::string const &path);
@@ -18,7 +18,7 @@ public:
 };
 class LocalGraph
 {
-  fgidx::dense_idx idx_;
+  fgidx::DenseIndex idx_;
 
 public:
   class Iterator

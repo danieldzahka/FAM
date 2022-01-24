@@ -15,8 +15,8 @@
 #include "util.hpp"
 
 namespace FAM {
-namespace RDMA {
-  struct ec_deleter
+namespace rdma {
+  struct EventChannelDeleter
   {
     void operator()(rdma_event_channel *c) noexcept
     {
@@ -24,7 +24,7 @@ namespace RDMA {
     }
   };
 
-  struct id_deleter
+  struct RdmaIdDeleter
   {
     void operator()(rdma_cm_id *id) noexcept
     {
@@ -34,23 +34,23 @@ namespace RDMA {
     }
   };
 
-  auto inline create_ec()
+  auto inline CreateEventChannel()
   {
     auto channel = rdma_create_event_channel();
     if (!channel) {
       throw std::runtime_error("rdma_create_event_channel() failed");
     }
-    ec_deleter del;
+    EventChannelDeleter del;
     return std::unique_ptr<std::remove_pointer<decltype(channel)>::type,
       decltype(del)>(channel, del);
   }
 
-  auto inline create_id(rdma_event_channel *const channel)
+  auto inline CreateRdmaId(rdma_event_channel *const channel)
   {
     rdma_cm_id *id;
     auto err = rdma_create_id(channel, &id, nullptr, RDMA_PS_TCP);
     if (err) { throw std::runtime_error("rdma_create_id() failed"); }
-    id_deleter del;
+    RdmaIdDeleter del;
     return std::unique_ptr<std::remove_pointer<decltype(id)>::type,
       decltype(del)>(id, del);
   }
@@ -75,7 +75,7 @@ namespace RDMA {
 
   int inline HCA_responder_resources() { return 0; }
 
-  auto inline get_cm_params() noexcept
+  auto inline RdmaConnParams() noexcept
   {
     struct rdma_conn_param params;
     std::memset(&params, 0, sizeof(params));
@@ -86,75 +86,75 @@ namespace RDMA {
     return params;
   }
 
-  class RDMA_mem
+  class RdmaMemoryBuffer
   {
   public:
     std::uint64_t size;
     std::unique_ptr<void, std::function<void(void *)>> p;
     ibv_mr *mr;
 
-    RDMA_mem(rdma_cm_id *id,
+    RdmaMemoryBuffer(rdma_cm_id *id,
       std::uint64_t const t_size,
       bool const use_HP,
       bool const write_allowed);
 
-    RDMA_mem(RDMA_mem &&) = delete;
-    RDMA_mem &operator=(RDMA_mem &&) = delete;
+    RdmaMemoryBuffer(RdmaMemoryBuffer &&) = delete;
+    RdmaMemoryBuffer &operator=(RdmaMemoryBuffer &&) = delete;
 
-    ~RDMA_mem();
+    ~RdmaMemoryBuffer();
   };
 
-  void poll_cq(
-    std::vector<std::unique_ptr<rdma_cm_id, FAM::RDMA::id_deleter>> &cm_ids,
+  void PollCompletionQueue(
+    std::vector<std::unique_ptr<rdma_cm_id, FAM::rdma::RdmaIdDeleter>> &cm_ids,
     std::atomic<bool> &keep_spinning);
 
 
-}// namespace RDMA
-struct WR;
+}// namespace rdma
+struct IbWorkRequest;
 
 }// namespace FAM
 
-class FAM::client::FAM_control::RDMA_service_impl
+class FAM::client::FamControl::RdmaServiceImpl
 {
-  decltype(FAM::RDMA::create_ec()) ec;
+  decltype(FAM::rdma::CreateEventChannel()) ec;
   std::string host;
   std::string port;
-  std::vector<std::unique_ptr<FAM::RDMA::RDMA_mem>> regions;
-  std::vector<decltype(FAM::RDMA::create_id(ec.get()))> ids;
+  std::vector<std::unique_ptr<FAM::rdma::RdmaMemoryBuffer>> regions;
+  std::vector<decltype(FAM::rdma::CreateRdmaId(ec.get()))> ids;
   std::thread poller;
   std::atomic<bool> keep_spinning = true;
-  std::vector<std::unique_ptr<WR[]>> wrs;
+  std::vector<std::unique_ptr<IbWorkRequest[]>> wrs;
 
-  void create_connection();
+  void CreateConnection();
 
 public:
-  RDMA_service_impl(std::string const &t_host,
+  RdmaServiceImpl(std::string const &t_host,
     std::string const &t_port,
     int const channels);
 
-  ~RDMA_service_impl();
+  ~RdmaServiceImpl();
 
-  RDMA_service_impl(const RDMA_service_impl &) = delete;
-  RDMA_service_impl &operator=(const RDMA_service_impl &) = delete;
+  RdmaServiceImpl(const RdmaServiceImpl &) = delete;
+  RdmaServiceImpl &operator=(const RdmaServiceImpl &) = delete;
 
-  std::pair<void *, uint32_t> create_region(std::uint64_t const t_size,
+  std::pair<void *, uint32_t> CreateRegion(std::uint64_t const t_size,
     bool const use_HP,
     bool const write_allowed);
 
-  void read(uint64_t laddr,
+  void Read(uint64_t laddr,
     uint64_t raddr,
     uint32_t length,
     uint32_t lkey,
     uint32_t rkey,
     unsigned long channel) noexcept;
 
-  void read(uint64_t laddr,
-    std::vector<FAM_segment> const &segs,
+  void Read(uint64_t laddr,
+    std::vector<FamSegment> const &segs,
     uint32_t lkey,
     uint32_t rkey,
     unsigned long channel) noexcept;
 
-  void write(uint64_t laddr,
+  void Write(uint64_t laddr,
     uint64_t raddr,
     uint32_t length,
     uint32_t lkey,

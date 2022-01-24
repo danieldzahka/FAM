@@ -19,7 +19,7 @@ auto get_num_verts(std::string const &file)
 }
 }// namespace
 
-fgidx::dense_idx fgidx::dense_idx::CreateInstance(std::string const &filepath,
+fgidx::DenseIndex fgidx::DenseIndex::CreateInstance(std::string const &filepath,
   uint64_t n_edges)
 {
   auto const verts = get_num_verts(filepath);
@@ -35,25 +35,25 @@ fgidx::dense_idx fgidx::dense_idx::CreateInstance(std::string const &filepath,
     input.read(reinterpret_cast<char *>(&a), sizeof(uint64_t));
     idx[i] = a;
     if (static_cast<unsigned long>(input.gcount()) != sizeof(uint64_t)) {
-      throw std::runtime_error("can't read index data");
+      throw std::runtime_error("can't Read index data");
     }
   }
 
-  return fgidx::dense_idx{ idx, boost::numeric_cast<uint32_t>(verts - 1) };
+  return fgidx::DenseIndex{ idx, boost::numeric_cast<uint32_t>(verts - 1) };
 }
 
-fgidx::dense_idx::dense_idx(uint64_t t_idx[], uint32_t const t_v_max)
+fgidx::DenseIndex::DenseIndex(uint64_t t_idx[], uint32_t const t_v_max)
   : idx{ t_idx }, v_max{ t_v_max }
 {}
-fgidx::dense_idx::dense_idx(std::unique_ptr<uint64_t[]> t_idx,
+fgidx::DenseIndex::DenseIndex(std::unique_ptr<uint64_t[]> t_idx,
   uint32_t const t_v_max)
   : idx{ std::move(t_idx) }, v_max{ t_v_max }
 {}
 
-fgidx::dense_idx::half_interval fgidx::dense_idx::operator[](
+fgidx::DenseIndex::HalfInterval fgidx::DenseIndex::operator[](
   const uint32_t v) const noexcept
 {
   auto const b = this->idx[v];
   auto const e = this->idx[v + 1];
-  return fgidx::dense_idx::half_interval{ b, e };
+  return fgidx::DenseIndex::HalfInterval{ b, e };
 }

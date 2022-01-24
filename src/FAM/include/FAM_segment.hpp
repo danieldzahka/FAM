@@ -1,15 +1,15 @@
 #ifndef __FAM_SEGMENT_H__
 #define __FAM_SEGMENT_H__
 
-namespace FAM{
+namespace FAM {
 
-    struct FAM_segment
-    {
-      uint64_t raddr;
-      uint32_t length;
-    };
+struct FamSegment
+{
+  uint64_t raddr;
+  uint32_t length;
+};
 
-}
+}// namespace FAM
 
 
-#endif //__FAM_SEGMENT_H__
+#endif//__FAM_SEGMENT_H__
