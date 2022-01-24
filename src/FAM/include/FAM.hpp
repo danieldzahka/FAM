@@ -15,8 +15,8 @@ class FamControl
 {
   class ControlServiceImpl;
   class RdmaServiceImpl;
-  std::unique_ptr<ControlServiceImpl> control_service;
-  std::unique_ptr<RdmaServiceImpl> RDMA_service;
+  std::unique_ptr<ControlServiceImpl> control_service_;
+  std::unique_ptr<RdmaServiceImpl> rdma_service_;
 
 public:
   struct RemoteRegion
@@ -34,19 +34,19 @@ public:
   };
 
   FamControl(std::string const &control_addr,
-    std::string const &RDMA_addr,
-    std::string const &RDMA_port,
+    std::string const &ipoib_addr,
+    std::string const &ipoib_port,
     int const rdma_channels);
   ~FamControl();
 
   // Control services
-  void ping();
+  void Ping();
   RemoteRegion AllocateRegion(uint64_t size);
   RemoteRegion MmapRemoteFile(std::string const &filepath);
 
   // rdma services
   LocalRegion CreateRegion(uint64_t const t_size,
-    bool const use_HP,
+    bool const use_hugepages,
     bool const write_allowed);
 
   // rdma Dataplane

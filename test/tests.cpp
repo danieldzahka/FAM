@@ -22,7 +22,7 @@ TEST_CASE("RPC PING", "[RPC]")
 {
   FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
 
-  SECTION("Message: ping") { REQUIRE_NOTHROW(client.ping()); }
+  SECTION("Message: Ping") { REQUIRE_NOTHROW(client.Ping()); }
 }
 
 TEST_CASE("RPC Allocate Region", "[RPC]")

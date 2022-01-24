@@ -81,14 +81,14 @@ private:
 };
 
 FAM::FamControl::FamControl(std::string const &control_addr,
-  std::string const &RDMA_addr,
-  std::string const &RDMA_port,
+  std::string const &ipoib_addr,
+  std::string const &ipoib_port,
   int const rdma_channels)
-  : control_service{ std::make_unique<
+  : control_service_{ std::make_unique<
     FamControl::FamControl::ControlServiceImpl>(
     grpc::CreateChannel(control_addr, grpc::InsecureChannelCredentials())) },
-    RDMA_service{ std::make_unique<FamControl::RdmaServiceImpl>(RDMA_addr,
-      RDMA_port,
+    rdma_service_{ std::make_unique<FamControl::RdmaServiceImpl>(ipoib_addr,
+      ipoib_port,
       rdma_channels) }
 
 {}
@@ -96,36 +96,37 @@ FAM::FamControl::FamControl(std::string const &control_addr,
 FAM::FamControl::~FamControl()
 {
   try {
-    this->control_service->EndSession();
+    this->control_service_->EndSession();
   } catch (std::exception const &e) {
     spdlog::error("Error in FamControl): {}", e.what());
   }
 }
 
-void FAM::FamControl::ping() { this->control_service->Ping(); }
+void FAM::FamControl::Ping() { this->control_service_->Ping(); }
 
 FAM::FamControl::RemoteRegion FAM::FamControl::AllocateRegion(
   std::uint64_t size)
 {
-  auto const [addr, length, rkey] = this->control_service->AllocateRegion(size);
+  auto const [addr, length, rkey] =
+    this->control_service_->AllocateRegion(size);
   return FamControl::RemoteRegion{ addr, length, rkey };
 }
 
 FAM::FamControl::RemoteRegion FAM::FamControl::MmapRemoteFile(
   std::string const &filepath)
 {
-  auto const [addr, length, rkey] = this->control_service->MmapFile(filepath);
+  auto const [addr, length, rkey] = this->control_service_->MmapFile(filepath);
   return FamControl::RemoteRegion{ addr, length, rkey };
 }
 
 
 FAM::FamControl::LocalRegion FAM::FamControl::CreateRegion(
   const std::uint64_t t_size,
-  const bool use_HP,
+  const bool use_hugepages,
   const bool write_allowed)
 {
   auto const [addr, lkey] =
-    this->RDMA_service->CreateRegion(t_size, use_HP, write_allowed);
+    this->rdma_service_->CreateRegion(t_size, use_hugepages, write_allowed);
   auto const length = t_size;
   return FamControl::LocalRegion{ addr, length, lkey };
 }
@@ -137,7 +138,7 @@ void FAM::FamControl::Read(void *laddr,
   uint32_t rkey,
   unsigned long channel = 0) noexcept
 {
-  this->RDMA_service->Read(
+  this->rdma_service_->Read(
     reinterpret_cast<uint64_t>(laddr), raddr, length, lkey, rkey, channel);
 }
 
@@ -149,7 +150,7 @@ void FAM::FamControl::Read(void *laddr,
 {
   // uphold the narrow calling contract
   assert(segs.size() <= FAM::max_outstanding_wr);
-  this->RDMA_service->Read(
+  this->rdma_service_->Read(
     reinterpret_cast<uint64_t>(laddr), segs, lkey, rkey, channel);
 }
 
@@ -161,6 +162,6 @@ void FAM::FamControl::Write(void *laddr,
   uint32_t rkey,
   unsigned long channel = 0) noexcept
 {
-  this->RDMA_service->Write(
+  this->rdma_service_->Write(
     reinterpret_cast<uint64_t>(laddr), raddr, length, lkey, rkey, channel);
 }
