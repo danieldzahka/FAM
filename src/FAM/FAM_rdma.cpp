@@ -64,7 +64,7 @@ void create_qp(rdma_cm_id *id, ibv_qp_init_attr &qp_attr)
 }
 }// namespace
 
-void FAM::client::FamControl::RdmaServiceImpl::CreateConnection()
+void FAM::FamControl::RdmaServiceImpl::CreateConnection()
 {
   auto chan = ec.get();
   auto t_id = FAM::rdma::CreateRdmaId(chan);
@@ -95,11 +95,10 @@ void FAM::client::FamControl::RdmaServiceImpl::CreateConnection()
   this->ids.push_back(std::move(t_id));
 }
 
-std::pair<void *, uint32_t>
-  FAM::client::FamControl::RdmaServiceImpl::CreateRegion(
-    std::uint64_t const t_size,
-    bool const use_HP,
-    bool const write_allowed)
+std::pair<void *, uint32_t> FAM::FamControl::RdmaServiceImpl::CreateRegion(
+  std::uint64_t const t_size,
+  bool const use_HP,
+  bool const write_allowed)
 {
   if (this->ids.size() == 0) throw std::runtime_error("No rdma_cm_id's to use");
   auto id = this->ids.front().get();
@@ -116,8 +115,7 @@ struct FAM::IbWorkRequest
   struct ibv_sge sge;
 };
 
-FAM::client::FamControl::RdmaServiceImpl::RdmaServiceImpl(
-  std::string const &t_host,
+FAM::FamControl::RdmaServiceImpl::RdmaServiceImpl(std::string const &t_host,
   std::string const &t_port,
   int const channels)
   : ec{ FAM::rdma::CreateEventChannel() }, host{ t_host }, port{ t_port }
@@ -132,7 +130,7 @@ FAM::client::FamControl::RdmaServiceImpl::RdmaServiceImpl(
     std::ref(this->keep_spinning));
 }
 
-FAM::client::FamControl::RdmaServiceImpl::~RdmaServiceImpl()
+FAM::FamControl::RdmaServiceImpl::~RdmaServiceImpl()
 {
   this->keep_spinning = false;
   this->poller.join();
@@ -171,7 +169,7 @@ void prep_wr(FAM::IbWorkRequest &t_wr,
 }// namespace
 
 
-void FAM::client::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
+void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
   uint64_t raddr,
   uint32_t length,
   uint32_t lkey,
@@ -195,7 +193,7 @@ void FAM::client::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
   if (ret) spdlog::error("ibv_post_send() failed (Read)");
 }
 
-void FAM::client::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
+void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
   std::vector<FAM::FamSegment> const &segs,
   uint32_t lkey,
   uint32_t rkey,
@@ -219,7 +217,7 @@ void FAM::client::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
   if (ret) spdlog::error("ibv_post_send() failed (Read)");
 }
 
-void FAM::client::FamControl::RdmaServiceImpl::Write(uint64_t laddr,
+void FAM::FamControl::RdmaServiceImpl::Write(uint64_t laddr,
   uint64_t raddr,
   uint32_t length,
   uint32_t lkey,

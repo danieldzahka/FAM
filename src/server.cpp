@@ -35,7 +35,7 @@ int main(int argc, const char **argv)
 
   spdlog::info("Starting Server");
   try {
-    FAM::server::Run(host, port);
+    FAM::server::RunServer(host, port);
   } catch (std::exception const &e) {
     spdlog::error("Caught Runtime Exception {}", e.what());
   }

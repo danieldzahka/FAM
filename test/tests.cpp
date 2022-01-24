@@ -15,22 +15,19 @@ const std::string mmap_test1 = MMAP_TEST1;
 
 TEST_CASE("RPC Consruction", "[RPC]")
 {
-  using namespace FAM::client;
-  REQUIRE_NOTHROW(FamControl{ memserver_addr, rdma_host, rdma_port, 1 });
+  REQUIRE_NOTHROW(FAM::FamControl{ memserver_addr, rdma_host, rdma_port, 1 });
 }
 
 TEST_CASE("RPC PING", "[RPC]")
 {
-  using namespace FAM::client;
-  FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
 
   SECTION("Message: ping") { REQUIRE_NOTHROW(client.ping()); }
 }
 
 TEST_CASE("RPC Allocate Region", "[RPC]")
 {
-  using namespace FAM::client;
-  FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
 
   SECTION("Message: AllocateRegion")
   {
@@ -42,16 +39,14 @@ TEST_CASE("RPC Allocate Region", "[RPC]")
 
 TEST_CASE("Client Create rdma Buffer", "[rdma]")
 {
-  using namespace FAM::client;
-  FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
 
   REQUIRE_NOTHROW(client.CreateRegion(771, false, false));
 }
 
 TEST_CASE("rdma Write", "[rdma]")
 {
-  using namespace FAM::client;
-  FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
 
   auto const [laddr, l1, lkey] = client.CreateRegion(1024, false, false);
   auto const [raddr, l2, rkey] = client.AllocateRegion(1024);
@@ -68,8 +63,7 @@ TEST_CASE("rdma Write", "[rdma]")
 
 TEST_CASE("rdma mmap", "[rdma]")
 {
-  using namespace FAM::client;
-  FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
 
   uint64_t constexpr filesize = 40;// bytes
 

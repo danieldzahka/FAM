@@ -355,7 +355,7 @@ private:
 };
 }// namespace
 
-void FAM::server::Run(std::string const &host, std::string const &port)
+void FAM::server::RunServer(std::string const &host, std::string const &port)
 {
   spdlog::set_level(spdlog::level::debug);
   ServerImpl server;

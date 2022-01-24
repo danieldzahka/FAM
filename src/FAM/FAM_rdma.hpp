@@ -13,6 +13,7 @@
 
 #include <FAM_segment.hpp>
 #include "util.hpp"
+#include "FAM.hpp"
 
 namespace FAM {
 namespace rdma {
@@ -114,7 +115,7 @@ struct IbWorkRequest;
 
 }// namespace FAM
 
-class FAM::client::FamControl::RdmaServiceImpl
+class FAM::FamControl::RdmaServiceImpl
 {
   decltype(FAM::rdma::CreateEventChannel()) ec;
   std::string host;
