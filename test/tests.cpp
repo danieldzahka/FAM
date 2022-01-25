@@ -7,27 +7,28 @@
 #include <thread>
 
 namespace {
-const std::string memserver_addr = MEMADDR;
-const std::string rdma_host = "192.168.12.2";
-const std::string rdma_port = "35287";
-const std::string mmap_test1 = MMAP_TEST1;
+auto const memserver_grpc_addr = MEMADDR;
+auto const ipoib_addr = "192.168.12.2";
+auto const ipoib_port = "35287";
+auto const mmap_test1 = MMAP_TEST1;
 }// namespace
 
 TEST_CASE("RPC Consruction", "[RPC]")
 {
-  REQUIRE_NOTHROW(FAM::FamControl{ memserver_addr, rdma_host, rdma_port, 1 });
+  REQUIRE_NOTHROW(
+    FAM::FamControl{ memserver_grpc_addr, ipoib_addr, ipoib_port, 1 });
 }
 
 TEST_CASE("RPC PING", "[RPC]")
 {
-  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_grpc_addr, ipoib_addr, ipoib_port, 1 };
 
   SECTION("Message: Ping") { REQUIRE_NOTHROW(client.Ping()); }
 }
 
 TEST_CASE("RPC Allocate Region", "[RPC]")
 {
-  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_grpc_addr, ipoib_addr, ipoib_port, 1 };
 
   SECTION("Message: AllocateRegion")
   {
@@ -39,14 +40,14 @@ TEST_CASE("RPC Allocate Region", "[RPC]")
 
 TEST_CASE("Client Create rdma Buffer", "[rdma]")
 {
-  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_grpc_addr, ipoib_addr, ipoib_port, 1 };
 
   REQUIRE_NOTHROW(client.CreateRegion(771, false, false));
 }
 
 TEST_CASE("rdma Write", "[rdma]")
 {
-  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_grpc_addr, ipoib_addr, ipoib_port, 1 };
 
   auto const [laddr, l1, lkey] = client.CreateRegion(1024, false, false);
   auto const [raddr, l2, rkey] = client.AllocateRegion(1024);
@@ -63,7 +64,7 @@ TEST_CASE("rdma Write", "[rdma]")
 
 TEST_CASE("rdma mmap", "[rdma]")
 {
-  FAM::FamControl client{ memserver_addr, rdma_host, rdma_port, 1 };
+  FAM::FamControl client{ memserver_grpc_addr, ipoib_addr, ipoib_port, 1 };
 
   uint64_t constexpr filesize = 40;// bytes
 

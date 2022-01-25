@@ -2,7 +2,6 @@
 
 #include <stdexcept>
 #include <string>
-#include <iostream>
 #include <memory>
 #include <cassert>
 

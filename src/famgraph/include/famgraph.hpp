@@ -9,10 +9,13 @@
 namespace famgraph {
 class RemoteGraph
 {
+  fgidx::DenseIndex const idx_;
   std::unique_ptr<FAM::FamControl> fam_control_;
-  fgidx::DenseIndex idx_;
-  RemoteGraph(fgidx::DenseIndex &&t_idx,
-    std::unique_ptr<FAM::FamControl> &&t_fam_control);
+  FAM::FamControl::RemoteRegion const adjacency_array_;
+
+  RemoteGraph(fgidx::DenseIndex &&idx,
+    std::unique_ptr<FAM::FamControl> &&fam_control,
+    FAM::FamControl::RemoteRegion adjacency_array);
 
 public:
   static famgraph::RemoteGraph CreateInstance(std::string const &index_file,
@@ -20,14 +23,23 @@ public:
     std::string const &grpc_addr,
     std::string const &ipoib_addr,
     std::string const &ipoib_port,
-    int const rdma_channels);
+    int rdma_channels);
   class Iterator
   {
+    // bool HasNext()
+    // std::pair<uint32_t, uint32_t *> operator()()
   };
 };
 class LocalGraph
 {
   fgidx::DenseIndex idx_;
+  std::unique_ptr<uint32_t[]> adjacency_array_;
+
+  LocalGraph(fgidx::DenseIndex &&idx,
+    std::unique_ptr<uint32_t[]> &&adjacency_array);
+public:
+  static LocalGraph CreateInstance(std::string const &index_file,
+    std::string const &adj_file);
 
 public:
   class Iterator

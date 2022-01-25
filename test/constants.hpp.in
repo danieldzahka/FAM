@@ -4,4 +4,5 @@
 #cmakedefine MEMADDR "@MEMADDR@"
 #cmakedefine MMAP_TEST1 "@MMAP_TEST1@"
 #cmakedefine FGIDX_TEST1 "@FGIDX_TEST1@"
+#cmakedefine TEST_GRAPH_DIR "@TEST_GRAPH_DIR@"
 #endif

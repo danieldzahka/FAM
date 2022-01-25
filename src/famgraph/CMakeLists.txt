@@ -10,6 +10,7 @@ target_link_libraries(
         project_warnings
         fmt::fmt
         spdlog::spdlog
+        PUBLIC
         FAM
         fgidx
 )
