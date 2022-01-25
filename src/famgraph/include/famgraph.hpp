@@ -7,6 +7,20 @@
 #include <FAM.hpp>
 
 namespace famgraph {
+
+struct VertexRange
+{
+  uint32_t const start;
+  uint32_t const end;
+};
+
+struct AdjacencyList
+{
+  uint32_t const v;
+  uint64_t const num_edges;
+  uint32_t const *edges;
+};
+
 class RemoteGraph
 {
   fgidx::DenseIndex const idx_;
@@ -26,8 +40,14 @@ public:
     int rdma_channels);
   class Iterator
   {
-    // bool HasNext()
-    // std::pair<uint32_t, uint32_t *> operator()()
+    VertexRange const range_;
+    uint32_t current_vertex_;
+
+  public:
+    Iterator(const VertexRange &range);
+
+    bool HasNext();
+    AdjacencyList Next();
   };
 };
 class LocalGraph
@@ -37,14 +57,28 @@ class LocalGraph
 
   LocalGraph(fgidx::DenseIndex &&idx,
     std::unique_ptr<uint32_t[]> &&adjacency_array);
+
 public:
   static LocalGraph CreateInstance(std::string const &index_file,
     std::string const &adj_file);
 
+  uint32_t max_v();
+
 public:
   class Iterator
   {
+    VertexRange const range_;
+    uint32_t current_vertex_;
+    LocalGraph const &graph_;
+
+  public:
+    Iterator(const VertexRange &range, LocalGraph const &graph);
+
+    bool HasNext();
+    AdjacencyList Next();
   };
+
+  Iterator GetIterator(VertexRange const& range);
 };
 
 }// namespace famgraph

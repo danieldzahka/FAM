@@ -34,6 +34,44 @@ famgraph::LocalGraph famgraph::LocalGraph::CreateInstance(
   const std::string &adj_file)
 {
   auto [edges, array] = fgidx::CreateAdjacencyArray(adj_file);
-  return famgraph::LocalGraph(
-    fgidx::DenseIndex::CreateInstance(index_file, edges), std::move(array));
+  return { fgidx::DenseIndex::CreateInstance(index_file, edges),
+    std::move(array) };
 }
+famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
+  const famgraph::VertexRange &range)
+{
+  return { range, *this };
+}
+uint32_t famgraph::LocalGraph::max_v() { return this->idx_.v_max; }
+
+bool famgraph::RemoteGraph::Iterator::HasNext()
+{
+  return this->current_vertex_ <= this->range_.end;
+}
+famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next()
+{
+  auto const v = this->current_vertex_;
+  // auto const [start, end] =
+  return { 0U, 0U, nullptr };
+}
+famgraph::RemoteGraph::Iterator::Iterator(const famgraph::VertexRange &range)
+  : range_(range), current_vertex_{ range.start }
+{}
+bool famgraph::LocalGraph::Iterator::HasNext()
+{
+  return this->current_vertex_ <= this->range_.end;
+}
+
+famgraph::AdjacencyList famgraph::LocalGraph::Iterator::Next()
+{
+  auto const v = this->current_vertex_++;
+  auto const [start_inclusive, end_exclusive] = this->graph_.idx_[v];
+  auto const num_edges = end_exclusive - start_inclusive;
+  auto const *edges = &this->graph_.adjacency_array_[start_inclusive];
+  return { v, num_edges, edges };
+}
+
+famgraph::LocalGraph::Iterator::Iterator(const famgraph::VertexRange &range,
+  const famgraph::LocalGraph &graph)
+  : range_(range), current_vertex_(range_.start), graph_(graph)
+{}
