@@ -10,11 +10,16 @@ class DenseIndex
 {
   std::unique_ptr<uint64_t const[]> idx;
 
-  DenseIndex(uint64_t[], uint32_t t_v_max);
-  DenseIndex(std::unique_ptr<uint64_t[]>, uint32_t t_v_max);
+  DenseIndex(uint64_t t_idx[],
+    uint32_t const t_v_max,
+    uint64_t const t_max_out_degree);
+  DenseIndex(std::unique_ptr<uint64_t[]> t_idx,
+    uint32_t t_v_max,
+    uint64_t t_max_out_degree);
 
 public:
   uint32_t const v_max;
+  uint64_t const max_out_degree;
 
   struct HalfInterval
   {

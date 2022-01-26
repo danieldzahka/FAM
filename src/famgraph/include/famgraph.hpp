@@ -26,10 +26,12 @@ class RemoteGraph
   fgidx::DenseIndex const idx_;
   std::unique_ptr<FAM::FamControl> fam_control_;
   FAM::FamControl::RemoteRegion const adjacency_array_;
+  FAM::FamControl::LocalRegion edge_window_;
 
   RemoteGraph(fgidx::DenseIndex &&idx,
     std::unique_ptr<FAM::FamControl> &&fam_control,
-    FAM::FamControl::RemoteRegion adjacency_array);
+    FAM::FamControl::RemoteRegion adjacency_array,
+    FAM::FamControl::LocalRegion edge_window);
 
 public:
   static famgraph::RemoteGraph CreateInstance(std::string const &index_file,
@@ -42,9 +44,12 @@ public:
   {
     VertexRange const range_;
     uint32_t current_vertex_;
+    RemoteGraph const &graph_;
+    uint32_t *buffer;
+    uint32_t volatile *cursor;
 
   public:
-    Iterator(const VertexRange &range);
+    Iterator(const VertexRange &range, RemoteGraph const &graph, int channel);
 
     bool HasNext() const noexcept;
     AdjacencyList Next() noexcept;

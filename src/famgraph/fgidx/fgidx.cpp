@@ -40,17 +40,29 @@ fgidx::DenseIndex fgidx::DenseIndex::CreateInstance(std::string const &filepath,
     if (static_cast<unsigned long>(input.gcount()) != sizeof(uint64_t)) {
       throw std::runtime_error("can't Read index data");
     }
+
   }
 
-  return fgidx::DenseIndex{ idx, boost::numeric_cast<uint32_t>(verts - 1) };
+  uint64_t max_out_degree = 0;
+  for (uint64_t i = 0; i < verts; ++i){
+    max_out_degree = std::max(max_out_degree, idx[i + 1] - idx[i]);
+  }
+  return fgidx::DenseIndex{
+    idx, boost::numeric_cast<uint32_t>(verts - 1), max_out_degree
+  };
 }
 
-fgidx::DenseIndex::DenseIndex(uint64_t t_idx[], uint32_t const t_v_max)
-  : idx{ t_idx }, v_max{ t_v_max }
+fgidx::DenseIndex::DenseIndex(uint64_t t_idx[],
+  uint32_t const t_v_max,
+  uint64_t const t_max_out_degree)
+  : idx{ t_idx }, v_max{ t_v_max }, max_out_degree{ t_max_out_degree }
 {}
 fgidx::DenseIndex::DenseIndex(std::unique_ptr<uint64_t[]> t_idx,
-  uint32_t const t_v_max)
-  : idx{ std::move(t_idx) }, v_max{ t_v_max }
+  uint32_t t_v_max,
+  uint64_t t_max_out_degree)
+  : idx{ std::move(t_idx) }, v_max{ t_v_max }, max_out_degree{
+      t_max_out_degree
+    }
 {}
 
 fgidx::DenseIndex::HalfInterval fgidx::DenseIndex::operator[](
