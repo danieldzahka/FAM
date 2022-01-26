@@ -46,8 +46,8 @@ public:
   public:
     Iterator(const VertexRange &range);
 
-    bool HasNext();
-    AdjacencyList Next();
+    bool HasNext() const noexcept;
+    AdjacencyList Next() noexcept;
   };
 };
 class LocalGraph
@@ -62,7 +62,7 @@ public:
   static LocalGraph CreateInstance(std::string const &index_file,
     std::string const &adj_file);
 
-  uint32_t max_v();
+  uint32_t max_v() const noexcept;
 
 public:
   class Iterator
@@ -74,12 +74,24 @@ public:
   public:
     Iterator(const VertexRange &range, LocalGraph const &graph);
 
-    bool HasNext();
-    AdjacencyList Next();
+    bool HasNext() const noexcept;
+    AdjacencyList Next() noexcept;
   };
 
-  Iterator GetIterator(VertexRange const& range);
+  Iterator GetIterator(VertexRange const &range) const noexcept;
 };
+
+template<typename Graph, typename VertexProgram>
+void EdgeMap(Graph const &graph,
+  VertexProgram const &f,
+  VertexRange const &range) noexcept
+{
+  auto iterator = graph.GetIterator(range);
+  while (iterator.HasNext()) {
+    auto const [v, n, edges] = iterator.Next();
+    for (unsigned long i = 0; i < n; ++i) f(v, edges[i], n);
+  }
+}
 
 }// namespace famgraph
 

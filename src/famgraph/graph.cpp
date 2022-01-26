@@ -38,17 +38,20 @@ famgraph::LocalGraph famgraph::LocalGraph::CreateInstance(
     std::move(array) };
 }
 famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
-  const famgraph::VertexRange &range)
+  const famgraph::VertexRange &range) const noexcept
 {
   return { range, *this };
 }
-uint32_t famgraph::LocalGraph::max_v() { return this->idx_.v_max; }
+uint32_t famgraph::LocalGraph::max_v() const noexcept
+{
+  return this->idx_.v_max;
+}
 
-bool famgraph::RemoteGraph::Iterator::HasNext()
+bool famgraph::RemoteGraph::Iterator::HasNext() const noexcept
 {
   return this->current_vertex_ <= this->range_.end;
 }
-famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next()
+famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
 {
   auto const v = this->current_vertex_;
   // auto const [start, end] =
@@ -57,12 +60,12 @@ famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next()
 famgraph::RemoteGraph::Iterator::Iterator(const famgraph::VertexRange &range)
   : range_(range), current_vertex_{ range.start }
 {}
-bool famgraph::LocalGraph::Iterator::HasNext()
+bool famgraph::LocalGraph::Iterator::HasNext() const noexcept
 {
   return this->current_vertex_ <= this->range_.end;
 }
 
-famgraph::AdjacencyList famgraph::LocalGraph::Iterator::Next()
+famgraph::AdjacencyList famgraph::LocalGraph::Iterator::Next() noexcept
 {
   auto const v = this->current_vertex_++;
   auto const [start_inclusive, end_exclusive] = this->graph_.idx_[v];

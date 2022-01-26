@@ -47,15 +47,14 @@ TEST_CASE("LocalGraph Construction", "[famgraph]")
   auto const edge_list = CreateEdgeList(plain_text_edge_list);
 
   auto graph = famgraph::LocalGraph::CreateInstance(index_file, adjacency_file);
-  auto iterator = graph.GetIterator(famgraph::VertexRange{ 0, graph.max_v() });
   std::vector<std::pair<uint32_t, uint32_t>> edge_list2;
-  while (iterator.HasNext()) {
-    auto const [v, n, edges] = iterator.Next();
-    for (unsigned long i = 0; i < n; ++i)
-      edge_list2.emplace_back(std::make_pair(v, edges[i]));
-  }
-  // std::sort(edge_list.begin(), edge_list.end());
-  // std::sort(edge_list2.begin(), edge_list2.end());
+  auto build_edge_list =
+    [&edge_list2](uint32_t const v, uint32_t const w, uint64_t const  /*v_degree*/) {
+      edge_list2.emplace_back(std::make_pair(v, w));
+    };
+
+  famgraph::EdgeMap(
+    graph, build_edge_list, famgraph::VertexRange{ 0, graph.max_v() });
 
   CompareEdgeLists(edge_list, edge_list2);
 }
