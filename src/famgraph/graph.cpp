@@ -60,7 +60,7 @@ uint32_t famgraph::LocalGraph::max_v() const noexcept
 
 bool famgraph::RemoteGraph::Iterator::HasNext() const noexcept
 {
-  return this->current_vertex_ <= this->range_.end;
+  return this->current_vertex_ < this->range_.end_exclusive;
 }
 famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
 {
@@ -77,9 +77,21 @@ famgraph::RemoteGraph::Iterator::Iterator(const VertexRange &range,
   int channel)
   : range_(range), current_vertex_{ range.start }, graph_(graph)
 {}
+famgraph::VertexRange famgraph::RemoteGraph::Iterator::MaximalRange(
+  uint32_t range_start)
+{
+  uint32_t range_end = range_start;
+  auto const edge_capacity =
+    this->graph_.edge_window_.length / sizeof(uint32_t);
+  uint64_t edges_taken = 0;
+  while (
+    edges_taken < edge_capacity && range_end < this->range_.end_exclusive) {}
+
+  return { range_start, range_end };
+}
 bool famgraph::LocalGraph::Iterator::HasNext() const noexcept
 {
-  return this->current_vertex_ <= this->range_.end;
+  return this->current_vertex_ < this->range_.end_exclusive;
 }
 
 famgraph::AdjacencyList famgraph::LocalGraph::Iterator::Next() noexcept

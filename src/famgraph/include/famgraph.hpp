@@ -10,8 +10,8 @@ namespace famgraph {
 
 struct VertexRange
 {
-  uint32_t const start;
-  uint32_t const end;
+  uint32_t start;
+  uint32_t end_exclusive;
 };
 
 struct AdjacencyList
@@ -43,10 +43,14 @@ public:
   class Iterator
   {
     VertexRange const range_;
+    VertexRange current_window_;
     uint32_t current_vertex_;
     RemoteGraph const &graph_;
     uint32_t *buffer;
     uint32_t volatile *cursor;
+
+    VertexRange MaximalRange(uint32_t range_start);
+    void SlideWindow();
 
   public:
     Iterator(const VertexRange &range, RemoteGraph const &graph, int channel);

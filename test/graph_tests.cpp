@@ -38,7 +38,8 @@ void CompareEdgeLists(
 
 TEST_CASE("LocalGraph Construction", "[famgraph]")
 {
-  auto graph_base = GENERATE("small/small", "Gnutella04/p2p-Gnutella04");
+  auto graph_base = GENERATE(
+    "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
   auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
@@ -54,14 +55,15 @@ TEST_CASE("LocalGraph Construction", "[famgraph]")
   };
 
   famgraph::EdgeMap(
-    graph, build_edge_list, famgraph::VertexRange{ 0, graph.max_v() });
+    graph, build_edge_list, famgraph::VertexRange{ 0, graph.max_v() + 1 });
 
   CompareEdgeLists(edge_list, edge_list2);
 }
 
 TEST_CASE("RemoteGraph Construction", "[famgraph]")
 {
-  auto graph_base = GENERATE("small/small", "Gnutella04/p2p-Gnutella04");
+  auto graph_base = GENERATE(
+    "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
   auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
