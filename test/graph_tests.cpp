@@ -78,4 +78,16 @@ TEST_CASE("RemoteGraph Construction", "[famgraph]")
     ipoib_addr,
     ipoib_port,
     rdma_channels);
+
+  std::vector<std::pair<uint32_t, uint32_t>> edge_list2;
+  auto build_edge_list = [&edge_list2](uint32_t const v,
+                           uint32_t const w,
+                           uint64_t const /*v_degree*/) noexcept {
+    edge_list2.emplace_back(std::make_pair(v, w));
+  };
+
+  famgraph::EdgeMap(
+    graph, build_edge_list, famgraph::VertexRange{ 0, graph.max_v() + 1 });
+
+  CompareEdgeLists(edge_list, edge_list2);
 }

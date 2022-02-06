@@ -8,6 +8,8 @@
 
 namespace famgraph {
 
+constexpr uint32_t null_vert = 0xFFFFFFFF;
+
 struct VertexRange
 {
   uint32_t start;
@@ -40,17 +42,29 @@ public:
     std::string const &ipoib_addr,
     std::string const &ipoib_port,
     int rdma_channels);
+
+  uint32_t max_v() const noexcept;
+
+  struct Buffer
+  {
+    void *const p;
+    uint64_t const length;
+  };
+
+  Buffer GetChannelBuffer(int channel) const noexcept;
+
   class Iterator
   {
     VertexRange const range_;
     VertexRange current_window_;
     uint32_t current_vertex_;
     RemoteGraph const &graph_;
-    uint32_t *buffer;
-    uint32_t volatile *cursor;
+    Buffer edge_buffer_;
+    uint32_t *cursor;
+    int const channel_;
 
-    VertexRange MaximalRange(uint32_t range_start);
-    void SlideWindow();
+    VertexRange MaximalRange(uint32_t range_start) noexcept;
+    void FillWindow(VertexRange range) noexcept;
 
   public:
     Iterator(const VertexRange &range, RemoteGraph const &graph, int channel);
@@ -58,7 +72,12 @@ public:
     bool HasNext() const noexcept;
     AdjacencyList Next() noexcept;
   };
+
+  Iterator GetIterator(VertexRange const &range,
+    int channel = 0) const noexcept;
 };
+
+
 class LocalGraph
 {
   fgidx::DenseIndex idx_;

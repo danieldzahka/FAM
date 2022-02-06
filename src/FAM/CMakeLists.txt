@@ -9,17 +9,17 @@ configure_file("FAM_constants.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/FAM_constants
 
 add_library(FAM client.cpp server.cpp FAM_rdma.cpp util.cpp)
 target_link_libraries(
-  FAM
-  PRIVATE project_options
-          project_warnings
-          fmt::fmt
-          spdlog::spdlog
-          Boost::filesystem
-          fam_grpc_proto
-          rdmacm
-          ibverbs
-          )
+        FAM
+        PRIVATE project_options
+        project_warnings
+        fmt::fmt
+        spdlog::spdlog
+        Boost::filesystem
+        fam_grpc_proto
+        rdmacm
+        ibverbs
+)
 
-        target_include_directories(FAM
-          PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-          PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(FAM
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+        PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

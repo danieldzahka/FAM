@@ -88,8 +88,8 @@ FAM::FamControl::FamControl(std::string const &control_addr,
     grpc::CreateChannel(control_addr, grpc::InsecureChannelCredentials())) },
     rdma_service_{ std::make_unique<FamControl::RdmaServiceImpl>(ipoib_addr,
       ipoib_port,
-      rdma_channels) }
-
+      rdma_channels) },
+    rdma_channels_{ rdma_channels }
 {}
 
 FAM::FamControl::~FamControl()

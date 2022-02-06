@@ -33,6 +33,25 @@ famgraph::RemoteGraph::RemoteGraph(fgidx::DenseIndex &&idx,
   : idx_{ std::move(idx) }, fam_control_{ std::move(fam_control) },
     adjacency_array_{ adjacency_array }, edge_window_{ edge_window }
 {}
+famgraph::RemoteGraph::Buffer famgraph::RemoteGraph::GetChannelBuffer(
+  int channel) const noexcept
+{
+  auto const &edge_window = this->edge_window_;
+  auto *p = static_cast<char *>(edge_window.laddr);
+  auto const length = (edge_window.length / this->fam_control_->rdma_channels_);
+
+  return { p + length * channel, length };
+}
+uint32_t famgraph::RemoteGraph::max_v() const noexcept
+{
+  return this->idx_.v_max;
+}
+famgraph::RemoteGraph::Iterator famgraph::RemoteGraph::GetIterator(
+  const famgraph::VertexRange &range,
+  int channel) const noexcept
+{
+  return famgraph::RemoteGraph::Iterator(range, *this, channel);
+}
 
 famgraph::LocalGraph::LocalGraph(fgidx::DenseIndex &&idx,
   std::unique_ptr<uint32_t[]> &&adjacency_array)
@@ -62,33 +81,95 @@ bool famgraph::RemoteGraph::Iterator::HasNext() const noexcept
 {
   return this->current_vertex_ < this->range_.end_exclusive;
 }
+
+// precondition: window should be filled
 famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
 {
   auto const v = this->current_vertex_++;
-  //  auto const [start_inclusive, end_exclusive] = this->graph_.idx_[v];
-  //  auto const num_edges = end_exclusive - start_inclusive;
-  //  auto const *edges = &this->graph_.adjacency_array_[start_inclusive];
-  //
-  // auto const [start, end] =
-  return { 0U, 0U, nullptr };
+  if (v >= this->current_window_.end_exclusive) {
+    this->current_window_ = this->MaximalRange(v);
+    this->FillWindow(this->current_window_);
+    this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
+  }
+
+  auto const [start_inclusive, end_exclusive] = this->graph_.idx_[v];
+  auto const num_edges = end_exclusive - start_inclusive;
+
+  auto edges = const_cast<const uint32_t *>(this->cursor);
+  this->cursor += num_edges;
+
+  return { v, num_edges, edges };
 }
 famgraph::RemoteGraph::Iterator::Iterator(const VertexRange &range,
   RemoteGraph const &graph,
   int channel)
-  : range_(range), current_vertex_{ range.start }, graph_(graph)
-{}
+  : range_(range), current_vertex_{ range.start },
+    graph_(graph), edge_buffer_{ graph.GetChannelBuffer(channel) }, channel_{
+      channel
+    }
+{
+  if (this->HasNext()) {
+    this->current_window_ = this->MaximalRange(this->range_.start);
+    this->FillWindow(this->current_window_);
+    this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
+  }
+}
 famgraph::VertexRange famgraph::RemoteGraph::Iterator::MaximalRange(
-  uint32_t range_start)
+  uint32_t range_start) noexcept
 {
   uint32_t range_end = range_start;
   auto const edge_capacity =
     this->graph_.edge_window_.length / sizeof(uint32_t);
+
   uint64_t edges_taken = 0;
-  while (
-    edges_taken < edge_capacity && range_end < this->range_.end_exclusive) {}
+  while (range_end < this->range_.end_exclusive) {
+    auto const [start_inclusive, end_exclusive] = this->graph_.idx_[range_end];
+    auto const num_edges = end_exclusive - start_inclusive;
+    edges_taken += num_edges;
+
+    if (edges_taken <= edge_capacity) {
+      range_end++;
+    } else {
+      break;
+    }
+  }
 
   return { range_start, range_end };
 }
+void famgraph::RemoteGraph::Iterator::FillWindow(
+  famgraph::VertexRange range) noexcept
+{
+  if (range.start >= range.end_exclusive) return;
+  auto *edges = static_cast<uint32_t volatile *>(this->edge_buffer_.p);
+  auto const &start = this->graph_.idx_[range.start].begin;
+  auto const &end_exclusive =
+    this->graph_.idx_[range.end_exclusive - 1].end_exclusive;
+  auto const length = end_exclusive - start;
+  auto const end = length - 1;
+
+  if (length == 0) return;
+
+  // 1) sign edge window
+  edges[0] = famgraph::null_vert;
+  edges[end] = famgraph::null_vert;
+
+  // 2) post rdma
+  auto const raddr =
+    this->graph_.adjacency_array_.raddr + start * sizeof(uint32_t);
+  auto const rkey = this->graph_.adjacency_array_.rkey;
+  auto const lkey = this->graph_.edge_window_.lkey;
+  this->graph_.fam_control_->Read(this->edge_buffer_.p,
+    raddr,
+    length * sizeof(uint32_t),
+    lkey,
+    rkey,
+    this->channel_);
+
+  // 3) wait on data
+  while (edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {
+  }
+}
+
 bool famgraph::LocalGraph::Iterator::HasNext() const noexcept
 {
   return this->current_vertex_ < this->range_.end_exclusive;

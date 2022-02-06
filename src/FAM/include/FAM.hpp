@@ -19,6 +19,8 @@ class FamControl
   std::unique_ptr<RdmaServiceImpl> rdma_service_;
 
 public:
+  int const rdma_channels_;
+  
   struct RemoteRegion
   {
     uint64_t raddr;
