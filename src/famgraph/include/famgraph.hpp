@@ -109,6 +109,21 @@ public:
   Iterator GetIterator(VertexRange const &range) const noexcept;
 };
 
+template<typename Vertex, typename AdjancencyGraph> class Graph
+{
+  AdjancencyGraph adjacency_graph_;
+  std::unique_ptr<Vertex[]> vertex_array_;
+
+  Graph(AdjancencyGraph &&adjacency_graph,
+    std::unique_ptr<Vertex[]> &&vertex_array)
+    : adjacency_graph_(std::move(adjacency_graph)),
+      vertex_array_(std::move(vertex_array))
+  {}
+
+public:
+
+};
+
 template<typename Graph, typename VertexProgram>
 void EdgeMap(Graph const &graph,
   VertexProgram const &f,
