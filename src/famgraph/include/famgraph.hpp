@@ -92,7 +92,6 @@ public:
 
   uint32_t max_v() const noexcept;
 
-public:
   class Iterator
   {
     VertexRange const range_;
@@ -114,14 +113,16 @@ template<typename Vertex, typename AdjancencyGraph> class Graph
   AdjancencyGraph adjacency_graph_;
   std::unique_ptr<Vertex[]> vertex_array_;
 
-  Graph(AdjancencyGraph &&adjacency_graph,
-    std::unique_ptr<Vertex[]> &&vertex_array)
+public:
+  explicit Graph(AdjancencyGraph &&adjacency_graph)
     : adjacency_graph_(std::move(adjacency_graph)),
-      vertex_array_(std::move(vertex_array))
+      vertex_array_(new Vertex[adjacency_graph_.max_v() + 1])
   {}
 
-public:
-
+  Vertex &operator[](std::uint32_t v) noexcept
+  {
+    return this->vertex_array_[v];
+  }
 };
 
 template<typename Graph, typename VertexProgram>
@@ -135,6 +136,40 @@ void EdgeMap(Graph const &graph,
     for (unsigned long i = 0; i < n; ++i) f(v, edges[i], n);
   }
 }
+
+class VertexSubset
+{
+  std::unique_ptr<std::uint64_t[]> bitmap_;
+  std::uint32_t size{ 0 };
+
+  constexpr static std::uint32_t Offset(std::uint32_t v) { return v >> 6; }
+  constexpr static std::uint32_t BitOffset(std::uint32_t v)
+  {
+    return v & ((1 << 6) - 1);
+  }
+
+public:
+  VertexSubset(std::uint64_t max_v);
+
+  bool operator[](std::uint32_t v) const noexcept
+  {
+    auto const word = Offset(v);
+    auto const bit_offset = BitOffset(v);
+    return this->bitmap_[word] & (1UL << bit_offset);
+  }
+
+  bool Set(std::uint32_t v) noexcept
+  {
+    auto &word = this->bitmap_[Offset(v)];
+    auto const bit_offset = BitOffset(v);
+    auto prev = __sync_fetch_and_or(&word, 1UL << BitOffset(v));
+    bool const was_unset = !(prev & (1UL << BitOffset(v)));
+    if (was_unset) this->size++;
+    return was_unset;
+  }
+
+  bool IsEmpty() const noexcept { return this->size == 0; }
+};
 
 }// namespace famgraph
 

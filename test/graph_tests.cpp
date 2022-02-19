@@ -91,3 +91,21 @@ TEST_CASE("RemoteGraph Construction", "[famgraph]")
 
   CompareEdgeLists(edge_list, edge_list2);
 }
+
+TEST_CASE("LocalGraph Vertex Table", "[famgraph]")
+{
+  auto graph_base = GENERATE(
+    "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
+  auto plain_text_edge_list =
+    fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
+  auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
+  auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
+
+  struct NullVertex
+  {
+  };
+
+  auto graph = famgraph::Graph<NullVertex, famgraph::LocalGraph>{
+    famgraph::LocalGraph::CreateInstance(index_file, adjacency_file)
+  };
+}

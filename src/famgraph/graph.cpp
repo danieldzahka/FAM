@@ -188,3 +188,7 @@ famgraph::LocalGraph::Iterator::Iterator(const famgraph::VertexRange &range,
   const famgraph::LocalGraph &graph)
   : range_(range), current_vertex_(range_.start), graph_(graph)
 {}
+
+famgraph::VertexSubset::VertexSubset(std::uint64_t max_v)
+  : bitmap_(new std::uint64_t[Offset(max_v) + 1])
+{}
