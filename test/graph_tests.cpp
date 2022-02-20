@@ -6,6 +6,7 @@
 
 #include <constants.hpp>
 #include <famgraph.hpp>
+#include <unordered_set>
 
 namespace {
 auto INPUTS_DIR = TEST_GRAPH_DIR;
@@ -108,4 +109,29 @@ TEST_CASE("LocalGraph Vertex Table", "[famgraph]")
   auto graph = famgraph::Graph<NullVertex, famgraph::LocalGraph>{
     famgraph::LocalGraph::CreateInstance(index_file, adjacency_file)
   };
+}
+
+TEST_CASE("Vertex Filter")
+{
+  std::uint32_t constexpr max_v = (1 << 15) + 43534;
+  famgraph::VertexSubset vertex_set{ max_v };
+
+  for (std::uint32_t v = 0; v <= max_v; ++v) {
+    REQUIRE(vertex_set[v] == false);
+  }
+
+  std::unordered_set<std::uint32_t> verts = { 1, 6623, 78, 96, max_v >> 1 };
+  for (auto v : verts) { vertex_set.Set(v); }
+
+  for (std::uint32_t v = 0; v <= max_v; ++v) {
+    if (verts.count(v))
+      REQUIRE(vertex_set[v]);
+    else
+      REQUIRE(!vertex_set[v]);
+  }
+
+  vertex_set.Clear();
+  for (std::uint32_t v = 0; v <= max_v; ++v) {
+    REQUIRE(vertex_set[v] == false);
+  }
 }

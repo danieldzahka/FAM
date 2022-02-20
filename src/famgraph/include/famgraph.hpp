@@ -2,6 +2,7 @@
 #define __FAMGRAPH_H__
 
 #include <memory>
+#include <cstring>
 #include <cstdint>
 #include <fgidx.hpp>
 #include <FAM.hpp>
@@ -140,6 +141,7 @@ void EdgeMap(Graph const &graph,
 class VertexSubset
 {
   std::unique_ptr<std::uint64_t[]> bitmap_;
+  std::uint32_t const max_v_;
   std::uint32_t size{ 0 };
 
   constexpr static std::uint32_t Offset(std::uint32_t v) { return v >> 6; }
@@ -149,7 +151,7 @@ class VertexSubset
   }
 
 public:
-  VertexSubset(std::uint64_t max_v);
+  VertexSubset(uint32_t max_v);
 
   bool operator[](std::uint32_t v) const noexcept
   {
@@ -162,13 +164,19 @@ public:
   {
     auto &word = this->bitmap_[Offset(v)];
     auto const bit_offset = BitOffset(v);
-    auto prev = __sync_fetch_and_or(&word, 1UL << BitOffset(v));
-    bool const was_unset = !(prev & (1UL << BitOffset(v)));
+    auto prev = __sync_fetch_and_or(&word, 1UL << bit_offset);
+    bool const was_unset = !(prev & (1UL << bit_offset));
     if (was_unset) this->size++;
     return was_unset;
   }
 
   bool IsEmpty() const noexcept { return this->size == 0; }
+  void Clear() noexcept
+  {
+    std::memset(this->bitmap_.get(),
+      0,
+      sizeof(std::uint64_t) * (1 + Offset(this->max_v_)));
+  }
 };
 
 }// namespace famgraph
