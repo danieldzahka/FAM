@@ -9,7 +9,7 @@
 
 namespace famgraph {
 
-constexpr uint32_t null_vert = 0xFFFFFFFF;
+constexpr uint32_t null_vert = std::numeric_limits<std::uint32_t>::max();
 
 struct VertexRange
 {
@@ -22,6 +22,68 @@ struct AdjacencyList
   uint32_t const v;
   uint64_t const num_edges;
   uint32_t const *edges;
+};
+
+class VertexSubset
+{
+  std::unique_ptr<std::uint64_t[]> bitmap_;
+  std::uint32_t const max_v_;
+  std::uint32_t size{ 0 };
+
+  constexpr static std::uint32_t Offset(std::uint32_t v) { return v >> 6; }
+  constexpr static std::uint32_t BitOffset(std::uint32_t v)
+  {
+    return v & ((1 << 6) - 1);
+  }
+
+public:
+  explicit VertexSubset(uint32_t max_v);
+
+  bool operator[](std::uint32_t v) const noexcept
+  {
+    auto const word = Offset(v);
+    auto const bit_offset = BitOffset(v);
+    return this->bitmap_[word] & (1UL << bit_offset);
+  }
+
+  bool Set(std::uint32_t v) noexcept
+  {
+    auto &word = this->bitmap_[Offset(v)];
+    auto const bit_offset = BitOffset(v);
+    auto prev = __sync_fetch_and_or(&word, 1UL << bit_offset);
+    bool const was_unset = !(prev & (1UL << bit_offset));
+    if (was_unset) this->size++;
+    return was_unset;
+  }
+
+  [[nodiscard]] bool IsEmpty() const noexcept { return this->size == 0; }
+  void Clear() noexcept
+  {
+    std::memset(this->bitmap_.get(),
+      0,
+      sizeof(std::uint64_t) * (1 + Offset(this->max_v_)));
+  }
+
+  static std::vector<famgraph::VertexRange> ConvertToRanges(
+    VertexSubset const &vertex_subset)
+  {
+    std::vector<famgraph::VertexRange> ret;
+    const auto range_start = 0;
+    const auto range_end_exclusive = vertex_subset.max_v_ + 1;
+
+    unsigned int i = range_start;
+    while (i < range_end_exclusive) {
+      if (vertex_subset[i]) {
+        ret.push_back({ i, i });
+        auto &current_range = ret.back();
+        while (i < range_end_exclusive && vertex_subset[i]) {
+          current_range.end_exclusive = ++i;
+        }
+      }
+      ++i;
+    }
+    return ret;
+  }
 };
 
 class RemoteGraph
@@ -44,7 +106,7 @@ public:
     std::string const &ipoib_port,
     int rdma_channels);
 
-  uint32_t max_v() const noexcept;
+  [[nodiscard]] uint32_t max_v() const noexcept;
 
   struct Buffer
   {
@@ -52,11 +114,12 @@ public:
     uint64_t const length;
   };
 
-  Buffer GetChannelBuffer(int channel) const noexcept;
+  [[nodiscard]] Buffer GetChannelBuffer(int channel) const noexcept;
 
   class Iterator
   {
-    VertexRange const range_;
+    std::vector<VertexRange> const ranges_;
+    decltype(ranges_.begin()) current_range_;
     VertexRange current_window_;
     uint32_t current_vertex_;
     RemoteGraph const &graph_;
@@ -68,16 +131,19 @@ public:
     void FillWindow(VertexRange range) noexcept;
 
   public:
-    Iterator(const VertexRange &range, RemoteGraph const &graph, int channel);
+    Iterator(std::vector<VertexRange> &&ranges,
+      RemoteGraph const &graph,
+      int channel);
 
-    bool HasNext() const noexcept;
+    [[nodiscard]] bool HasNext() noexcept;
     AdjacencyList Next() noexcept;
   };
 
-  Iterator GetIterator(VertexRange const &range,
+  [[nodiscard]] Iterator GetIterator(VertexRange const &range,
+    int channel = 0) const noexcept;
+  [[nodiscard]] Iterator GetIterator(VertexSubset const &vertex_set,
     int channel = 0) const noexcept;
 };
-
 
 class LocalGraph
 {
@@ -91,22 +157,25 @@ public:
   static LocalGraph CreateInstance(std::string const &index_file,
     std::string const &adj_file);
 
-  uint32_t max_v() const noexcept;
+  [[nodiscard]] uint32_t max_v() const noexcept;
 
   class Iterator
   {
-    VertexRange const range_;
+    std::vector<VertexRange> const ranges_;
+    decltype(ranges_.begin()) current_range_;
     uint32_t current_vertex_;
     LocalGraph const &graph_;
 
   public:
-    Iterator(const VertexRange &range, LocalGraph const &graph);
+    Iterator(std::vector<VertexRange> &&ranges, LocalGraph const &graph);
 
-    bool HasNext() const noexcept;
+    bool HasNext() noexcept;
     AdjacencyList Next() noexcept;
   };
 
-  Iterator GetIterator(VertexRange const &range) const noexcept;
+  [[nodiscard]] Iterator GetIterator(VertexRange const &range) const noexcept;
+  [[nodiscard]] Iterator GetIterator(
+    VertexSubset const &vertex_set) const noexcept;
 };
 
 template<typename Vertex, typename AdjancencyGraph> class Graph
@@ -128,10 +197,10 @@ public:
   }
 };
 
-template<typename Graph, typename VertexProgram>
+template<typename Graph, typename VertexProgram, typename VertexSet>
 void EdgeMap(Graph const &graph,
   VertexProgram const &f,
-  VertexRange const &range) noexcept
+  VertexSet const &range) noexcept
 {
   auto iterator = graph.GetIterator(range);
   while (iterator.HasNext()) {
@@ -139,47 +208,6 @@ void EdgeMap(Graph const &graph,
     for (unsigned long i = 0; i < n; ++i) f(v, edges[i], n);
   }
 }
-
-class VertexSubset
-{
-  std::unique_ptr<std::uint64_t[]> bitmap_;
-  std::uint32_t const max_v_;
-  std::uint32_t size{ 0 };
-
-  constexpr static std::uint32_t Offset(std::uint32_t v) { return v >> 6; }
-  constexpr static std::uint32_t BitOffset(std::uint32_t v)
-  {
-    return v & ((1 << 6) - 1);
-  }
-
-public:
-  VertexSubset(uint32_t max_v);
-
-  bool operator[](std::uint32_t v) const noexcept
-  {
-    auto const word = Offset(v);
-    auto const bit_offset = BitOffset(v);
-    return this->bitmap_[word] & (1UL << bit_offset);
-  }
-
-  bool Set(std::uint32_t v) noexcept
-  {
-    auto &word = this->bitmap_[Offset(v)];
-    auto const bit_offset = BitOffset(v);
-    auto prev = __sync_fetch_and_or(&word, 1UL << bit_offset);
-    bool const was_unset = !(prev & (1UL << bit_offset));
-    if (was_unset) this->size++;
-    return was_unset;
-  }
-
-  bool IsEmpty() const noexcept { return this->size == 0; }
-  void Clear() noexcept
-  {
-    std::memset(this->bitmap_.get(),
-      0,
-      sizeof(std::uint64_t) * (1 + Offset(this->max_v_)));
-  }
-};
 
 }// namespace famgraph
 

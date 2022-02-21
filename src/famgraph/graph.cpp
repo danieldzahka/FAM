@@ -50,7 +50,15 @@ famgraph::RemoteGraph::Iterator famgraph::RemoteGraph::GetIterator(
   const famgraph::VertexRange &range,
   int channel) const noexcept
 {
-  return famgraph::RemoteGraph::Iterator(range, *this, channel);
+  return famgraph::RemoteGraph::Iterator(
+    std::vector<VertexRange>{ range }, *this, channel);
+}
+famgraph::RemoteGraph::Iterator famgraph::RemoteGraph::GetIterator(
+  const famgraph::VertexSubset &vertex_set,
+  int channel) const noexcept
+{
+  return famgraph::RemoteGraph::Iterator(
+    VertexSubset::ConvertToRanges(vertex_set), *this, channel);
 }
 
 famgraph::LocalGraph::LocalGraph(fgidx::DenseIndex &&idx,
@@ -70,16 +78,28 @@ famgraph::LocalGraph famgraph::LocalGraph::CreateInstance(
 famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
   const famgraph::VertexRange &range) const noexcept
 {
-  return { range, *this };
+  return { std::vector<VertexRange>{ range }, *this };
 }
 uint32_t famgraph::LocalGraph::max_v() const noexcept
 {
   return this->idx_.v_max;
 }
-
-bool famgraph::RemoteGraph::Iterator::HasNext() const noexcept
+famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
+  const famgraph::VertexSubset &vertex_set) const noexcept
 {
-  return this->current_vertex_ < this->range_.end_exclusive;
+  return famgraph::LocalGraph::Iterator(
+    VertexSubset::ConvertToRanges(vertex_set), *this);
+}
+
+bool famgraph::RemoteGraph::Iterator::HasNext() noexcept
+{
+  while (this->current_range_ != this->ranges_.cend()) {
+    if (this->current_vertex_ < this->current_range_->end_exclusive)
+      return true;
+    ++this->current_range_;
+    this->current_vertex_ = this->current_range_->start;
+  }
+  return false;
 }
 
 // precondition: window should be filled
@@ -100,16 +120,20 @@ famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
 
   return { v, num_edges, edges };
 }
-famgraph::RemoteGraph::Iterator::Iterator(const VertexRange &range,
+famgraph::RemoteGraph::Iterator::Iterator(std::vector<VertexRange> &&ranges,
   RemoteGraph const &graph,
   int channel)
-  : range_(range), current_vertex_{ range.start },
+  : ranges_(std::move(ranges)),
+    current_range_(ranges_.begin()), current_vertex_{ ranges_.begin()
+                                                          != ranges_.end()
+                                                        ? current_range_->start
+                                                        : 0 },
     graph_(graph), edge_buffer_{ graph.GetChannelBuffer(channel) }, channel_{
       channel
     }
 {
   if (this->HasNext()) {
-    this->current_window_ = this->MaximalRange(this->range_.start);
+    this->current_window_ = this->MaximalRange(this->current_range_->start);
     this->FillWindow(this->current_window_);
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
   }
@@ -122,7 +146,7 @@ famgraph::VertexRange famgraph::RemoteGraph::Iterator::MaximalRange(
     this->graph_.edge_window_.length / sizeof(uint32_t);
 
   uint64_t edges_taken = 0;
-  while (range_end < this->range_.end_exclusive) {
+  while (range_end < this->current_range_->end_exclusive) {
     auto const [start_inclusive, end_exclusive] = this->graph_.idx_[range_end];
     auto const num_edges = end_exclusive - start_inclusive;
     edges_taken += num_edges;
@@ -170,11 +194,19 @@ void famgraph::RemoteGraph::Iterator::FillWindow(
   }
 }
 
-bool famgraph::LocalGraph::Iterator::HasNext() const noexcept
+// precondition: current_vertex should be in current range
+bool famgraph::LocalGraph::Iterator::HasNext() noexcept
 {
-  return this->current_vertex_ < this->range_.end_exclusive;
+  while (this->current_range_ != this->ranges_.cend()) {
+    if (this->current_vertex_ < this->current_range_->end_exclusive)
+      return true;
+    ++this->current_range_;
+    this->current_vertex_ = this->current_range_->start;
+  }
+  return false;
 }
 
+// precondition: current_vertex_ is valid
 famgraph::AdjacencyList famgraph::LocalGraph::Iterator::Next() noexcept
 {
   auto const v = this->current_vertex_++;
@@ -184,9 +216,12 @@ famgraph::AdjacencyList famgraph::LocalGraph::Iterator::Next() noexcept
   return { v, num_edges, edges };
 }
 
-famgraph::LocalGraph::Iterator::Iterator(const famgraph::VertexRange &range,
+famgraph::LocalGraph::Iterator::Iterator(std::vector<VertexRange> &&ranges,
   const famgraph::LocalGraph &graph)
-  : range_(range), current_vertex_(range_.start), graph_(graph)
+  : ranges_(std::move(ranges)), current_range_(ranges_.begin()),
+    current_vertex_(
+      ranges_.begin() != ranges_.end() ? current_range_->start : 0),
+    graph_(graph)
 {}
 
 famgraph::VertexSubset::VertexSubset(uint32_t max_v)
