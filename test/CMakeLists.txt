@@ -28,6 +28,11 @@ target_link_libraries(graph_tests PRIVATE project_warnings project_options catch
 target_include_directories(graph_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(graph_tests server)
 
+add_executable(algorithm_tests algorithm_tests.cpp)
+target_link_libraries(algorithm_tests PRIVATE project_warnings project_options catch_main fmt::fmt famgraph_algs)
+target_include_directories(algorithm_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+add_dependencies(algorithm_tests server)
+
 # automatically discover tests that are defined in catch based test files you can modify the unittests. Set TEST_PREFIX
 # to whatever you want, or use different for different binaries
 catch_discover_tests(

@@ -111,14 +111,16 @@ public:
 
 template<typename Vertex, typename AdjancencyGraph> class Graph
 {
-  AdjancencyGraph adjacency_graph_;
+  AdjancencyGraph &adjacency_graph_;
   std::unique_ptr<Vertex[]> vertex_array_;
 
 public:
-  explicit Graph(AdjancencyGraph &&adjacency_graph)
-    : adjacency_graph_(std::move(adjacency_graph)),
+  explicit Graph(AdjancencyGraph &adjacency_graph)
+    : adjacency_graph_(adjacency_graph),
       vertex_array_(new Vertex[adjacency_graph_.max_v() + 1])
   {}
+
+  auto max_v() const noexcept { return this->adjacency_graph_.max_v(); }
 
   Vertex &operator[](std::uint32_t v) noexcept
   {

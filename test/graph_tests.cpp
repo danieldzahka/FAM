@@ -102,13 +102,18 @@ TEST_CASE("LocalGraph Vertex Table", "[famgraph]")
   auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
   auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
 
-  struct NullVertex
+  int constexpr static magic = 123321;
+  struct TestVertex
   {
+    int value{ magic };
   };
 
-  auto graph = famgraph::Graph<NullVertex, famgraph::LocalGraph>{
-    famgraph::LocalGraph::CreateInstance(index_file, adjacency_file)
-  };
+  auto localGraph =
+    famgraph::LocalGraph::CreateInstance(index_file, adjacency_file);
+  auto graph = famgraph::Graph<TestVertex, famgraph::LocalGraph>{ localGraph };
+
+  auto &vert = graph[0];
+  REQUIRE(vert.value == magic);
 }
 
 TEST_CASE("Vertex Filter")
