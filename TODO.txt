@@ -2,3 +2,4 @@
 2. Change Graph format to align with .gr (pointer to end_exclusive of adj list)
 3. Iterator needs to take a filter function
 4. Test cases for empty intervals...
+5. Remove explicit capture in lambda testcase

@@ -60,7 +60,7 @@ TEST_CASE("LocalGraph Construction", "[famgraph]")
   };
 
   famgraph::EdgeMap(
-    graph, build_edge_list, famgraph::VertexRange{ 0, graph.max_v() + 1 });
+    graph, famgraph::VertexRange{ 0, graph.max_v() + 1 }, build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }
@@ -92,7 +92,7 @@ TEST_CASE("RemoteGraph Construction", "[famgraph]")
   };
 
   famgraph::EdgeMap(
-    graph, build_edge_list, famgraph::VertexRange{ 0, graph.max_v() + 1 });
+    graph, famgraph::VertexRange{ 0, graph.max_v() + 1 }, build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }
@@ -213,13 +213,7 @@ TEST_CASE("Local Filter Edgemap")
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMap(graph, build_edge_list, vertex_subset);
-
-  //  int count = 0;
-  //  for (unsigned int i = 0; i <= graph.max_v(); ++i) {
-  //    if (vertex_subset[i]) ++count;
-  //  }
-  //  fmt::print("Count {}\n", count);
+  famgraph::EdgeMap(graph, vertex_subset, build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }
@@ -233,8 +227,6 @@ TEST_CASE("Remote Filter Edgemap")
   auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
   auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
 
-  // auto graph = famgraph::LocalGraph::CreateInstance(index_file,
-  // adjacency_file);
   int const rdma_channels = 1;
   auto graph = famgraph::RemoteGraph::CreateInstance(index_file,
     adjacency_file,
@@ -257,13 +249,7 @@ TEST_CASE("Remote Filter Edgemap")
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMap(graph, build_edge_list, vertex_subset);
-
-  //  int count = 0;
-  //  for (unsigned int i = 0; i <= graph.max_v(); ++i) {
-  //    if (vertex_subset[i]) ++count;
-  //  }
-  //  fmt::print("Count {}\n", count);
+  famgraph::EdgeMap(graph, vertex_subset, build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }

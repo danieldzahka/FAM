@@ -59,6 +59,7 @@ public:
   [[nodiscard]] bool IsEmpty() const noexcept { return this->size == 0; }
   void Clear() noexcept
   {
+    this->size = 0;
     std::memset(this->bitmap_.get(),
       0,
       sizeof(std::uint64_t) * (1 + Offset(this->max_v_)));
@@ -195,12 +196,17 @@ public:
   {
     return this->vertex_array_[v];
   }
+
+  AdjancencyGraph &getAdjacencyGraph() const noexcept
+  {
+    return adjacency_graph_;
+  }
 };
 
-template<typename Graph, typename VertexProgram, typename VertexSet>
+template<typename Graph, typename VertexSet, typename VertexProgram>
 void EdgeMap(Graph const &graph,
-  VertexProgram const &f,
-  VertexSet const &range) noexcept
+  VertexSet const &range,
+  VertexProgram const &f) noexcept
 {
   auto iterator = graph.GetIterator(range);
   while (iterator.HasNext()) {
