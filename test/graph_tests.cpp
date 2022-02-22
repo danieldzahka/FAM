@@ -14,12 +14,16 @@ auto const memserver_grpc_addr = MEMADDR;
 auto const ipoib_addr = "192.168.12.2";
 auto const ipoib_port = "35287";
 
-auto CreateEdgeList(std::string const &plain_text_file)
+auto all_vertices = [](std::uint32_t) { return true; };
+using Filter = std::function<bool(std::uint32_t)>;
+auto CreateEdgeList(std::string const &plain_text_file, Filter f = all_vertices)
 {
   std::ifstream ifs{ plain_text_file };
   std::vector<std::pair<uint32_t, uint32_t>> edge_list;
   uint32_t u, w;
-  while (ifs >> u >> w) { edge_list.emplace_back(std::make_pair(u, w)); }
+  while (ifs >> u >> w) {
+    if (f(u)) edge_list.emplace_back(std::make_pair(u, w));
+  }
 
   return edge_list;
 }
@@ -172,16 +176,36 @@ TEST_CASE("Convert Vertex Subset to Range")
   }
 }
 
-TEST_CASE("Local Filter Edgemap") {
+namespace {
+famgraph::VertexSubset RandomVertexSet(std::uint32_t n, std::mt19937 &gen)
+{
+  std::bernoulli_distribution d(0.75);
+  famgraph::VertexSubset ret{ n };
+  for (std::uint32_t i = 0; i <= n; ++i) {
+    if (d(gen)) ret.Set(i);
+  }
+  return ret;
+}
+}// namespace
+
+TEST_CASE("Local Filter Edgemap")
+{
   auto graph_base = GENERATE(
     "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
   auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
   auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
-  auto const edge_list = CreateEdgeList(plain_text_edge_list);
 
   auto graph = famgraph::LocalGraph::CreateInstance(index_file, adjacency_file);
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  auto vertex_subset = RandomVertexSet(graph.max_v(), gen);
+
+  auto filter = [&vertex_subset](std::uint32_t v) { return vertex_subset[v]; };
+  auto const edge_list = CreateEdgeList(plain_text_edge_list, filter);
+
   std::vector<std::pair<uint32_t, uint32_t>> edge_list2;
   auto build_edge_list = [&edge_list2](uint32_t const v,
                            uint32_t const w,
@@ -189,8 +213,57 @@ TEST_CASE("Local Filter Edgemap") {
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMap(
-    graph, build_edge_list, famgraph::VertexRange{ 0, graph.max_v() + 1 });
+  famgraph::EdgeMap(graph, build_edge_list, vertex_subset);
+
+  //  int count = 0;
+  //  for (unsigned int i = 0; i <= graph.max_v(); ++i) {
+  //    if (vertex_subset[i]) ++count;
+  //  }
+  //  fmt::print("Count {}\n", count);
+
+  CompareEdgeLists(edge_list, edge_list2);
+}
+
+TEST_CASE("Remote Filter Edgemap")
+{
+  auto graph_base = GENERATE(
+    "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
+  auto plain_text_edge_list =
+    fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
+  auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
+  auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
+
+  // auto graph = famgraph::LocalGraph::CreateInstance(index_file,
+  // adjacency_file);
+  int const rdma_channels = 1;
+  auto graph = famgraph::RemoteGraph::CreateInstance(index_file,
+    adjacency_file,
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  auto vertex_subset = RandomVertexSet(graph.max_v(), gen);
+
+  auto filter = [&vertex_subset](std::uint32_t v) { return vertex_subset[v]; };
+  auto const edge_list = CreateEdgeList(plain_text_edge_list, filter);
+
+  std::vector<std::pair<uint32_t, uint32_t>> edge_list2;
+  auto build_edge_list = [&edge_list2](uint32_t const v,
+                           uint32_t const w,
+                           uint64_t const /*v_degree*/) noexcept {
+    edge_list2.emplace_back(std::make_pair(v, w));
+  };
+
+  famgraph::EdgeMap(graph, build_edge_list, vertex_subset);
+
+  //  int count = 0;
+  //  for (unsigned int i = 0; i <= graph.max_v(); ++i) {
+  //    if (vertex_subset[i]) ++count;
+  //  }
+  //  fmt::print("Count {}\n", count);
 
   CompareEdgeLists(edge_list, edge_list2);
 }
