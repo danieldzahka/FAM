@@ -39,9 +39,14 @@ void CompareEdgeLists(
   }
 }
 
-}// namespace
+template<typename AdjacencyGraph> struct GraphWrapper
+{
+  AdjacencyGraph graph;
+  std::string_view name;
+};
 
-TEST_CASE("LocalGraph Construction", "[famgraph]")
+template<typename AdjacencyGraph = famgraph::LocalGraph, typename... Args>
+GraphWrapper<AdjacencyGraph> CreateGraph(Args... args)
 {
   auto graph_base = GENERATE(
     "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
@@ -49,9 +54,19 @@ TEST_CASE("LocalGraph Construction", "[famgraph]")
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
   auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
   auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
+
+  return { AdjacencyGraph::CreateInstance(index_file, adjacency_file, args...),
+    graph_base };
+}
+}// namespace
+
+TEST_CASE("LocalGraph Construction", "[famgraph]")
+{
+  auto [graph, graph_base] = CreateGraph();
+  auto plain_text_edge_list =
+    fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
   auto const edge_list = CreateEdgeList(plain_text_edge_list);
 
-  auto graph = famgraph::LocalGraph::CreateInstance(index_file, adjacency_file);
   std::vector<std::pair<uint32_t, uint32_t>> edge_list2;
   auto build_edge_list = [&edge_list2](uint32_t const v,
                            uint32_t const w,
@@ -67,22 +82,13 @@ TEST_CASE("LocalGraph Construction", "[famgraph]")
 
 TEST_CASE("RemoteGraph Construction", "[famgraph]")
 {
-  auto graph_base = GENERATE(
-    "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
+  int const rdma_channels = 1;
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph>(
+    memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
-  auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
-  auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
-  int const rdma_channels = 1;
-
   auto const edge_list = CreateEdgeList(plain_text_edge_list);
-
-  auto graph = famgraph::RemoteGraph::CreateInstance(index_file,
-    adjacency_file,
-    memserver_grpc_addr,
-    ipoib_addr,
-    ipoib_port,
-    rdma_channels);
 
   std::vector<std::pair<uint32_t, uint32_t>> edge_list2;
   auto build_edge_list = [&edge_list2](uint32_t const v,
@@ -99,22 +105,13 @@ TEST_CASE("RemoteGraph Construction", "[famgraph]")
 
 TEST_CASE("LocalGraph Vertex Table", "[famgraph]")
 {
-  auto graph_base = GENERATE(
-    "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
-  auto plain_text_edge_list =
-    fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
-  auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
-  auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
-
   int constexpr static magic = 123321;
   struct TestVertex
   {
     int value{ magic };
   };
-
-  auto localGraph =
-    famgraph::LocalGraph::CreateInstance(index_file, adjacency_file);
-  auto graph = famgraph::Graph<TestVertex, famgraph::LocalGraph>{ localGraph };
+  auto [local_graph, graph_base] = CreateGraph();
+  auto graph = famgraph::Graph<TestVertex, famgraph::LocalGraph>{ local_graph };
 
   auto &vert = graph[0];
   REQUIRE(vert.value == magic);
@@ -190,14 +187,9 @@ famgraph::VertexSubset RandomVertexSet(std::uint32_t n, std::mt19937 &gen)
 
 TEST_CASE("Local Filter Edgemap")
 {
-  auto graph_base = GENERATE(
-    "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
+  auto [graph, graph_base] = CreateGraph();
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
-  auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
-  auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
-
-  auto graph = famgraph::LocalGraph::CreateInstance(index_file, adjacency_file);
 
   std::random_device rd;
   std::mt19937 gen(rd());
@@ -220,25 +212,16 @@ TEST_CASE("Local Filter Edgemap")
 
 TEST_CASE("Remote Filter Edgemap")
 {
-  auto graph_base = GENERATE(
-    "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
-  auto plain_text_edge_list =
-    fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
-  auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
-  auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
-
   int const rdma_channels = 1;
-  auto graph = famgraph::RemoteGraph::CreateInstance(index_file,
-    adjacency_file,
-    memserver_grpc_addr,
-    ipoib_addr,
-    ipoib_port,
-    rdma_channels);
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph>(
+    memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   std::random_device rd;
   std::mt19937 gen(rd());
   auto vertex_subset = RandomVertexSet(graph.max_v(), gen);
 
+  auto plain_text_edge_list =
+    fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
   auto filter = [&vertex_subset](std::uint32_t v) { return vertex_subset[v]; };
   auto const edge_list = CreateEdgeList(plain_text_edge_list, filter);
 

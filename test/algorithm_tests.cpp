@@ -39,9 +39,15 @@ const std::map<BfsKey, unsigned int> bfs_reference_output{
   { { "Gnutella04/p2p-Gnutella04"sv, 0 }, 21 },
   { { "last_vert_non_empty/graph"sv, 0 }, 3 }
 };
-}// namespace
 
-TEST_CASE("Breadth First Search")
+template<typename AdjacencyGraph> struct GraphWrapper
+{
+  AdjacencyGraph graph;
+  std::string_view name;
+};
+
+template<typename AdjacencyGraph = famgraph::LocalGraph, typename... Args>
+GraphWrapper<AdjacencyGraph> CreateGraph(Args... args)
 {
   auto graph_base = GENERATE(
     "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
@@ -50,10 +56,15 @@ TEST_CASE("Breadth First Search")
   auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
   auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
 
-  auto local_graph =
-    famgraph::LocalGraph::CreateInstance(index_file, adjacency_file);
+  return { AdjacencyGraph::CreateInstance(index_file, adjacency_file, args...),
+    graph_base };
+}
+}// namespace
 
-  auto breadth_first_search = famgraph::BreadthFirstSearch(local_graph);
+TEST_CASE("Breadth First Search")
+{
+  auto [graph, graph_base] = CreateGraph();
+  auto breadth_first_search = famgraph::BreadthFirstSearch(graph);
   std::uint32_t const start_vertex = 0;
   auto result = breadth_first_search(start_vertex);
   auto max_distance = bfs_reference_output.at({ graph_base, 0 });
