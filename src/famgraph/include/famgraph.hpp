@@ -8,7 +8,8 @@
 #include <FAM.hpp>
 
 namespace famgraph {
-
+using VertexLabel = std::uint32_t;
+using EdgeIndexType = std::uint64_t;
 constexpr uint32_t null_vert = std::numeric_limits<std::uint32_t>::max();
 
 struct VertexRange
@@ -108,6 +109,7 @@ public:
     int rdma_channels);
 
   [[nodiscard]] uint32_t max_v() const noexcept;
+  [[nodiscard]] EdgeIndexType Degree(VertexLabel v) const noexcept;
 
   struct Buffer
   {
@@ -159,6 +161,7 @@ public:
     std::string const &adj_file);
 
   [[nodiscard]] uint32_t max_v() const noexcept;
+  [[nodiscard]] EdgeIndexType Degree(VertexLabel v) const noexcept;
 
   class Iterator
   {
@@ -191,6 +194,10 @@ public:
   {}
 
   auto max_v() const noexcept { return this->adjacency_graph_.max_v(); }
+  [[nodiscard]] auto Degree(VertexLabel v) const noexcept
+  {
+    return this->adjacency_graph_.Degree(v);
+  };
 
   Vertex &operator[](std::uint32_t v) noexcept
   {
@@ -215,6 +222,20 @@ void EdgeMap(Graph const &graph,
   }
 }
 
+template<typename Graph, typename VertexFunction>
+void VertexMap(Graph &graph,
+  VertexFunction const &f,
+  famgraph::VertexRange range) noexcept
+{
+  for (VertexLabel v = 0; v < range.end_exclusive; ++v) { f(graph[v], v); }
+}
+
+template<typename Graph, typename VertexFunction>
+void VertexMap(Graph &graph, VertexFunction const &f) noexcept
+{
+  auto const max_v = graph.max_v();
+  VertexMap(graph, f, { 0, max_v + 1 });
+}
 }// namespace famgraph
 
 #endif//__FAMGRAPH_H__

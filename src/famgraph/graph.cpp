@@ -60,6 +60,12 @@ famgraph::RemoteGraph::Iterator famgraph::RemoteGraph::GetIterator(
   return famgraph::RemoteGraph::Iterator(
     VertexSubset::ConvertToRanges(vertex_set), *this, channel);
 }
+famgraph::EdgeIndexType famgraph::RemoteGraph::Degree(
+  VertexLabel v) const noexcept
+{
+  auto interval = this->idx_[v];
+  return interval.end_exclusive - interval.begin;
+}
 
 famgraph::LocalGraph::LocalGraph(fgidx::DenseIndex &&idx,
   std::unique_ptr<uint32_t[]> &&adjacency_array)
@@ -89,6 +95,12 @@ famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
 {
   return famgraph::LocalGraph::Iterator(
     VertexSubset::ConvertToRanges(vertex_set), *this);
+}
+famgraph::EdgeIndexType famgraph::LocalGraph::Degree(
+  famgraph::VertexLabel v) const noexcept
+{
+  auto interval = this->idx_[v];
+  return interval.end_exclusive - interval.begin;
 }
 
 bool famgraph::RemoteGraph::Iterator::HasNext() noexcept
