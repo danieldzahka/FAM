@@ -1,5 +1,6 @@
 #include <famgraph.hpp>
 #include "FAM.hpp"
+#include <fmt/core.h>//TODO: Delete this dep
 
 famgraph::RemoteGraph famgraph::RemoteGraph::CreateInstance(
   std::string const &index_file,
@@ -240,4 +241,16 @@ famgraph::VertexSubset::VertexSubset(uint32_t max_v)
   : bitmap_(new std::uint64_t[Offset(max_v) + 1]), max_v_(max_v)
 {
   this->Clear();
+}
+uint32_t famgraph::VertexSubset::GetMaxV() const noexcept { return max_v_; }
+
+void famgraph::PrintVertexSubset(
+  const famgraph::VertexSubset &vertex_subset) noexcept
+{
+  const auto max_v = vertex_subset.GetMaxV();
+  fmt::print("(");
+  for (VertexLabel i = 0; i <= max_v; ++i) {
+    if (vertex_subset[i]) fmt::print("{}, ", i);
+  }
+  fmt::print(")\n");
 }

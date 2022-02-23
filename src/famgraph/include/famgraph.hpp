@@ -86,7 +86,11 @@ public:
     }
     return ret;
   }
+
+  uint32_t GetMaxV() const noexcept;
 };
+
+void PrintVertexSubset(VertexSubset const &vertex_subset) noexcept;
 
 class RemoteGraph
 {

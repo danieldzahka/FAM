@@ -73,7 +73,7 @@ template<typename AdjacencyGraph> class KcoreDecomposition
 
   famgraph::Graph<Vertex, AdjacencyGraph> graph_;
 
-  VertexLabel KthCoreSize(VertexDegreeClass k) const noexcept
+  VertexLabel KthCoreSize(VertexDegreeClass k) noexcept
   {
     VertexLabel size = 0;
     for (VertexLabel v = 0; v <= this->graph_.max_v(); ++v) {
@@ -102,8 +102,8 @@ public:
     auto &graph = this->graph_;
     auto &adj_graph = graph.getAdjacencyGraph();
 
-    famgraph::VertexMap(graph, [&](Vertex &vertex, VertexLabel v) {
-      auto const d = adj_graph.Degree(v);
+    famgraph::VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
+      auto const d = static_cast<std::uint32_t>(adj_graph.Degree(v));
       vertex.degree.store(d, std::memory_order_relaxed);
       if (d < k) frontier->Set(v);
     });
@@ -116,6 +116,7 @@ public:
     };
 
     while (!frontier->IsEmpty()) {
+      PrintVertexSubset(*frontier);
       EdgeMap(adj_graph, *frontier, push);
       frontier->Clear();
       std::swap(frontier, next_frontier);
