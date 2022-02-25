@@ -128,3 +128,16 @@ TEST_CASE("LocalGraph Kcore Decomposition")
   auto graph = CreateGraph(graph_base);
   RunKcore(graph, graph_base, k);
 }
+
+TEST_CASE("RemoteGraph Kcore Decomposition")
+{
+  auto [graph_base, k] = GENERATE(KcoreKey{ small_symmetric, 2 },
+    KcoreKey{ gnutella_symmetric, 5 },
+    KcoreKey{ gnutella_symmetric, 6 },
+    KcoreKey{ gnutella_symmetric, 7 });
+  
+  int const rdma_channels = 1;
+  auto graph = CreateGraph<famgraph::RemoteGraph>(
+    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  RunKcore(graph, graph_base, k);
+}
