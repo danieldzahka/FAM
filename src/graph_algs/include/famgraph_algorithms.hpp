@@ -108,15 +108,14 @@ public:
       if (d < k) frontier->Set(v);
     });
 
-    auto push = [&](uint32_t const v,
+    auto push = [&](uint32_t const,
                   uint32_t const w,
                   uint64_t const /*v_degree*/) noexcept {
-      auto old = graph[v].degree.fetch_sub(1, std::memory_order_relaxed);
+      auto old = graph[w].degree.fetch_sub(1, std::memory_order_relaxed);
       if (old == k) next_frontier->Set(w);
     };
 
     while (!frontier->IsEmpty()) {
-      PrintVertexSubset(*frontier);
       EdgeMap(adj_graph, *frontier, push);
       frontier->Clear();
       std::swap(frontier, next_frontier);
