@@ -66,6 +66,20 @@ public:
       sizeof(std::uint64_t) * (1 + Offset(this->max_v_)));
   }
 
+  // TODO: Fix bug where extra 1's are at end. Note that the range conversion
+  // makes edgemap work anyway
+  void SetAll() noexcept
+  {
+    this->size = this->max_v_ + 1;
+    std::memset(this->bitmap_.get(),
+      0xFF,
+      sizeof(std::uint64_t) * (1 + Offset(this->max_v_)));
+    //    auto &word = this->bitmap_[Offset(this->max_v_)];
+    //    auto const bit_offset = BitOffset(this->max_v_);
+    //    auto const mask = (1 << (bit_offset + 1)) - 1;
+    //    word &= mask;
+  }
+
   static std::vector<famgraph::VertexRange> ConvertToRanges(
     VertexSubset const &vertex_subset)
   {

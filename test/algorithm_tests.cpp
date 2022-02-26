@@ -67,6 +67,18 @@ const std::map<KcoreKey, unsigned int> kcore_reference_output{
   { { gnutella_symmetric, 7 }, 365 },
 };
 
+struct ConnectedComponentsResult
+{
+  famgraph::VertexLabel total_components;
+  famgraph::VertexLabel non_trivial_components;
+  famgraph::VertexLabel largest_component_size;
+};
+const std::map<std::string_view, ConnectedComponentsResult>
+  connected_components_output{
+    { small_symmetric, { 6, 3, 7 } },
+    { gnutella_symmetric, { 4, 1, 10876 } },
+  };
+
 template<typename AdjacencyGraph = famgraph::LocalGraph, typename... Args>
 AdjacencyGraph CreateGraph(std::string_view graph_base, Args... args)
 {
@@ -97,6 +109,17 @@ void RunKcore(Graph &graph, std::string_view graph_base, std::uint32_t kcore_k)
   auto result = kcore_decomposition(kcore_k);
   auto kth_core_size = kcore_reference_output.at({ graph_base, kcore_k });
   REQUIRE(result.kth_core_membership == kth_core_size);
+}
+
+template<typename Graph>
+void RunConnectedComponents(Graph &graph, std::string_view graph_base)
+{
+  auto connected_components = famgraph::ConnectedComponents(graph);
+  auto result = connected_components();
+  auto reference = connected_components_output.at(graph_base);
+  REQUIRE(result.components == reference.total_components);
+  REQUIRE(result.non_trivial_components == reference.non_trivial_components);
+  REQUIRE(result.largest_component_size == reference.largest_component_size);
 }
 }// namespace
 
@@ -135,9 +158,25 @@ TEST_CASE("RemoteGraph Kcore Decomposition")
     KcoreKey{ gnutella_symmetric, 5 },
     KcoreKey{ gnutella_symmetric, 6 },
     KcoreKey{ gnutella_symmetric, 7 });
-  
+
   int const rdma_channels = 1;
   auto graph = CreateGraph<famgraph::RemoteGraph>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunKcore(graph, graph_base, k);
+}
+
+TEST_CASE("LocalGraph ConnectedComponents")
+{
+  auto graph_base = GENERATE(small_symmetric, gnutella_symmetric);
+  auto graph = CreateGraph(graph_base);
+  RunConnectedComponents(graph, graph_base);
+}
+
+TEST_CASE("RemoteGraph ConnectedComponents")
+{
+  auto graph_base = GENERATE(small_symmetric, gnutella_symmetric);
+  int const rdma_channels = 1;
+  auto graph = CreateGraph<famgraph::RemoteGraph>(
+    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  RunConnectedComponents(graph, graph_base);
 }

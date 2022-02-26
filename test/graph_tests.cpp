@@ -142,6 +142,21 @@ TEST_CASE("Vertex Filter")
   }
 }
 
+TEST_CASE("Vertex Filter SetAll()")
+{
+  std::uint32_t const max_v = GENERATE((1 << 15) + 43534, 62, 63, 64, 65, 66);
+  famgraph::VertexSubset vertex_set{ max_v };
+
+  vertex_set.SetAll();
+  auto const ranges = famgraph::VertexSubset::ConvertToRanges(vertex_set);
+  REQUIRE(ranges.size() == 1);
+  auto const range = ranges.front();
+  REQUIRE(range.start == 0);
+  REQUIRE(vertex_set[max_v]);
+  // REQUIRE(!vertex_set[max_v + 1]);
+  REQUIRE(range.end_exclusive == max_v + 1);
+}
+
 TEST_CASE("Convert Vertex Subset to Range")
 {
   using vr = std::vector<famgraph::VertexRange>;
