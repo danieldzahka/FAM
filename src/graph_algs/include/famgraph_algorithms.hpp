@@ -230,5 +230,91 @@ private:
     return { trivial_comps + non_trivial, non_trivial, largest_component_size };
   }
 };
+
+template<typename AdjacencyGraph> class PageRank
+{
+  static constexpr float alpha = 0.85f;
+  static constexpr float epsilon = 0.001f;
+  static constexpr float INIT_RESIDUAL = 1 - alpha;
+
+  struct Vertex
+  {
+    float value;
+    float delta;
+    std::atomic<float> residual;
+
+    bool update_add_atomic(float const s_val) noexcept
+    {
+      auto current = residual.load(std::memory_order_relaxed);
+      while (!residual.compare_exchange_weak(current,
+        current + s_val,
+        std::memory_order_relaxed,
+        std::memory_order_relaxed))
+        ;
+      return true;
+    }
+
+    bool vertex_map() noexcept
+    {
+      auto res = residual.load(std::memory_order_relaxed);
+      if (std::abs(res) > epsilon) {
+        value += res;
+        delta = res;// load up
+        residual.store(0, std::memory_order_relaxed);// clear
+        return true;
+      } else {
+        return false;
+      }
+    }
+  };
+
+  famgraph::Graph<Vertex, AdjacencyGraph> graph_;
+
+public:
+  PageRank(AdjacencyGraph &graph) : graph_(graph) {}
+
+  struct Result
+  {
+  };
+
+  Result operator()()
+  {
+    auto const max_v = this->graph_.max_v();
+    famgraph::VertexSubset frontierA{ max_v };
+    famgraph::VertexSubset frontierB{ max_v };
+
+    auto *frontier = &frontierA;
+    auto *next_frontier = &frontierB;
+
+    auto &graph = this->graph_;
+    auto &adj_graph = graph.getAdjacencyGraph();
+
+    famgraph::VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
+      graph[v].value = 0.0;
+      graph[v].delta = INIT_RESIDUAL;
+      graph[v].residual = 0.0;
+    });
+
+    // TODO: Check if I need to zero out delta here...
+    auto push =
+      [&](uint32_t const v, uint32_t const w, uint64_t const n) noexcept {
+        auto const my_delta = graph[v].delta;
+        auto const my_val = my_delta * alpha / static_cast<float>(n);
+        graph[w].update_add_atomic(my_val);
+      };
+
+    frontier->SetAll();
+    while (!frontier->IsEmpty()) {
+      EdgeMap(adj_graph, *frontier, push);
+      VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
+        if (vertex.vertex_map()) next_frontier->Set(v);
+      });
+      frontier->Clear();
+      std::swap(frontier, next_frontier);
+    }
+
+    return {};
+  }
+};
 }// namespace famgraph
 #endif// FAM_FAMGRAPH_ALGORITHMS_HPP
