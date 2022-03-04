@@ -275,6 +275,8 @@ public:
 
   struct Result
   {
+    uint32_t iterations;
+    std::vector<std::pair<float, VertexLabel>> topN;
   };
 
   Result operator()()
@@ -304,6 +306,7 @@ public:
       };
 
     frontier->SetAll();
+    uint32_t iterations = 0;
     while (!frontier->IsEmpty()) {
       EdgeMap(adj_graph, *frontier, push);
       VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
@@ -311,9 +314,30 @@ public:
       });
       frontier->Clear();
       std::swap(frontier, next_frontier);
+      ++iterations;
     }
 
-    return {};
+    return { iterations, this->TopN() };
+  }
+
+private:
+  auto TopN(VertexLabel n = 20)
+  {
+    std::vector<std::pair<float, VertexLabel>> topN;
+    for (VertexLabel v = 0; v <= this->graph_.max_v(); ++v) {
+      // TODO: refaactor this if statement to || conditional
+      if (topN.size() < n) {
+        topN.push_back(std::make_pair(graph_[v].value, v));
+        std::sort(topN.begin(), topN.end());
+      } else {
+        if (graph_[v].value > topN.front().first) {
+          topN.front() = std::make_pair(graph_[v].value, v);
+          std::sort(topN.begin(), topN.end());
+        }
+      }
+    }
+
+    return topN;
   }
 };
 }// namespace famgraph

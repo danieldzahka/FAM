@@ -121,6 +121,22 @@ void RunConnectedComponents(Graph &graph, std::string_view graph_base)
   REQUIRE(result.non_trivial_components == reference.non_trivial_components);
   REQUIRE(result.largest_component_size == reference.largest_component_size);
 }
+
+template<typename Graph>
+void RunPageRank(Graph &graph, std::string_view graph_base)
+{
+  auto page_rank = famgraph::PageRank(graph);
+  auto result = page_rank();
+  fmt::print("Pagerank Iterations {}\n", result.iterations);
+  for (auto const &pair : result.topN) {
+    fmt::print("vertex: {}, value: {}\n", pair.second, pair.first);
+  }
+  //  auto reference = connected_components_output.at(graph_base);
+  //  REQUIRE(result.components == reference.total_components);
+  //  REQUIRE(result.non_trivial_components ==
+  //  reference.non_trivial_components); REQUIRE(result.largest_component_size
+  //  == reference.largest_component_size);
+}
 }// namespace
 
 TEST_CASE("LocalGraph Breadth First Search")
@@ -179,4 +195,20 @@ TEST_CASE("RemoteGraph ConnectedComponents")
   auto graph = CreateGraph<famgraph::RemoteGraph>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunConnectedComponents(graph, graph_base);
+}
+
+TEST_CASE("LocalGraph PageRank")
+{
+  auto graph_base = GENERATE(gnutella);
+  auto graph = CreateGraph(graph_base);
+  RunPageRank(graph, graph_base);
+}
+
+TEST_CASE("RemoteGraph PageRank")
+{
+  auto graph_base = GENERATE(gnutella);
+  int const rdma_channels = 1;
+  auto graph = CreateGraph<famgraph::RemoteGraph>(
+    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  RunPageRank(graph, graph_base);
 }
