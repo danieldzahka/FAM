@@ -81,11 +81,16 @@ public:
   }
 
   static std::vector<famgraph::VertexRange> ConvertToRanges(
-    VertexSubset const &vertex_subset)
+    VertexSubset const &vertex_subset) noexcept {
+    return ConvertToRanges(vertex_subset, 0 , vertex_subset.max_v_);
+  }
+
+  static std::vector<famgraph::VertexRange> ConvertToRanges(
+    VertexSubset const &vertex_subset, VertexLabel start, VertexLabel end_exclusive) noexcept
   {
     std::vector<famgraph::VertexRange> ret;
-    const auto range_start = 0;
-    const auto range_end_exclusive = vertex_subset.max_v_ + 1;
+    const auto range_start = start;
+    const auto range_end_exclusive = end_exclusive + 1;
 
     unsigned int i = range_start;
     while (i < range_end_exclusive) {
@@ -230,16 +235,17 @@ public:
 
 template<typename Graph, typename VertexSet, typename VertexProgram>
 void EdgeMap(Graph const &graph,
-  VertexSet const &range,
+  VertexSet const &vertex_subset,
   VertexProgram const &f) noexcept
 {
-  auto iterator = graph.GetIterator(range);
+  auto iterator = graph.GetIterator(vertex_subset);
   while (iterator.HasNext()) {
     auto const [v, n, edges] = iterator.Next();
     for (unsigned long i = 0; i < n; ++i) f(v, edges[i], n);
   }
 }
 
+// TODO: Make this into a tbb parallel for...
 template<typename Graph, typename VertexFunction>
 void VertexMap(Graph &graph,
   VertexFunction const &f,
