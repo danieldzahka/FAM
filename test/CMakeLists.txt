@@ -73,3 +73,16 @@ catch_discover_tests(
         "unittests."
         OUTPUT_SUFFIX
         .xml)
+
+catch_discover_tests(
+        algorithm_tests
+        TEST_PREFIX
+        "unittests."
+        REPORTER
+        xml
+        OUTPUT_DIR
+        .
+        OUTPUT_PREFIX
+        "unittests."
+        OUTPUT_SUFFIX
+        .xml)

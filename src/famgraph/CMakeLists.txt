@@ -2,6 +2,7 @@ add_subdirectory(fgidx)
 
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(TBB REQUIRED)
 
 add_library(famgraph famgraph.cpp graph.cpp algorithm.cpp)
 target_link_libraries(
@@ -11,6 +12,7 @@ target_link_libraries(
         fmt::fmt
         spdlog::spdlog
         PUBLIC
+        TBB::tbb
         FAM
         fgidx
 )

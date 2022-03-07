@@ -7,6 +7,8 @@
 #include <fgidx.hpp>
 #include <FAM.hpp>
 
+#include <oneapi/tbb.h>
+
 namespace famgraph {
 using VertexLabel = std::uint32_t;
 using EdgeIndexType = std::uint64_t;
@@ -29,7 +31,7 @@ class VertexSubset
 {
   std::unique_ptr<std::uint64_t[]> bitmap_;
   std::uint32_t const max_v_;
-  std::uint32_t size{ 0 };
+  tbb::combinable<VertexLabel> num_active_;
 
   constexpr static std::uint32_t Offset(std::uint32_t v) { return v >> 6; }
   constexpr static std::uint32_t BitOffset(std::uint32_t v)
@@ -53,24 +55,28 @@ public:
     auto const bit_offset = BitOffset(v);
     auto prev = __sync_fetch_and_or(&word, 1UL << bit_offset);
     bool const was_unset = !(prev & (1UL << bit_offset));
-    if (was_unset) this->size++;
+    if (was_unset) ++this->num_active_.local();
     return was_unset;
   }
 
-  [[nodiscard]] bool IsEmpty() const noexcept { return this->size == 0; }
+  [[nodiscard]] bool IsEmpty() noexcept
+  {
+    return this->num_active_.combine(std::plus<uint32_t>{}) == 0;
+  }
+
+  // TODO: Make parallel clear
   void Clear() noexcept
   {
-    this->size = 0;
+    this->num_active_.clear();
     std::memset(this->bitmap_.get(),
       0,
       sizeof(std::uint64_t) * (1 + Offset(this->max_v_)));
   }
 
   // TODO: Fix bug where extra 1's are at end. Note that the range conversion
-  // makes edgemap work anyway
   void SetAll() noexcept
   {
-    this->size = this->max_v_ + 1;
+    this->num_active_.local() = this->max_v_ + 1;
     std::memset(this->bitmap_.get(),
       0xFF,
       sizeof(std::uint64_t) * (1 + Offset(this->max_v_)));
@@ -81,12 +87,15 @@ public:
   }
 
   static std::vector<famgraph::VertexRange> ConvertToRanges(
-    VertexSubset const &vertex_subset) noexcept {
-    return ConvertToRanges(vertex_subset, 0 , vertex_subset.max_v_);
+    VertexSubset const &vertex_subset) noexcept
+  {
+    return ConvertToRanges(vertex_subset, 0, vertex_subset.max_v_);
   }
 
   static std::vector<famgraph::VertexRange> ConvertToRanges(
-    VertexSubset const &vertex_subset, VertexLabel start, VertexLabel end_exclusive) noexcept
+    VertexSubset const &vertex_subset,
+    VertexLabel start,
+    VertexLabel end_exclusive) noexcept
   {
     std::vector<famgraph::VertexRange> ret;
     const auto range_start = start;
