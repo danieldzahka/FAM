@@ -174,6 +174,12 @@ public:
     AdjacencyList Next() noexcept;
   };
 
+  // TODO: Iterator constructor should take const & ranges
+  [[nodiscard]] Iterator GetIterator(std::vector<VertexRange> ranges,
+    int channel = 0) const noexcept
+  {
+    return Iterator(std::move(ranges), *this, channel);
+  }
   [[nodiscard]] Iterator GetIterator(VertexRange const &range,
     int channel = 0) const noexcept;
   [[nodiscard]] Iterator GetIterator(VertexSubset const &vertex_set,
@@ -209,6 +215,13 @@ public:
     AdjacencyList Next() noexcept;
   };
 
+  // TODO: Iterator constructor should take const & ranges
+  [[nodiscard]] Iterator GetIterator(
+    std::vector<VertexRange> ranges) const noexcept
+  {
+    return Iterator(std::move(ranges), *this);
+  }
+
   [[nodiscard]] Iterator GetIterator(VertexRange const &range) const noexcept;
   [[nodiscard]] Iterator GetIterator(
     VertexSubset const &vertex_set) const noexcept;
@@ -243,9 +256,9 @@ public:
 };
 
 template<typename Graph, typename VertexSet, typename VertexProgram>
-void EdgeMap(Graph const &graph,
+void EdgeMapSequential(Graph &graph,
   VertexSet const &vertex_subset,
-  VertexProgram const &f) noexcept
+  VertexProgram &f) noexcept
 {
   auto iterator = graph.GetIterator(vertex_subset);
   while (iterator.HasNext()) {
@@ -254,13 +267,31 @@ void EdgeMap(Graph const &graph,
   }
 }
 
-// TODO: Make this into a tbb parallel for...
+template<typename Graph, typename VertexProgram>
+void EdgeMap(Graph &graph,
+  VertexSubset const &subset,
+  VertexProgram &f) noexcept
+{
+  tbb::parallel_for(tbb::blocked_range<VertexLabel>{ 0, graph.max_v() + 1 },
+    [&](auto const my_range) {
+      auto const rs =
+        VertexSubset::ConvertToRanges(subset, my_range.begin(), my_range.end());
+      EdgeMapSequential(graph, rs, f);
+    });
+}
+
 template<typename Graph, typename VertexFunction>
 void VertexMap(Graph &graph,
   VertexFunction const &f,
   famgraph::VertexRange range) noexcept
 {
-  for (VertexLabel v = 0; v < range.end_exclusive; ++v) { f(graph[v], v); }
+  tbb::parallel_for(
+    tbb::blocked_range<VertexLabel>{ range.start, range.end_exclusive },
+    [&](auto const &my_range) {
+      for (auto v = my_range.begin(); v < my_range.end(); ++v) {
+        f(graph[v], v);
+      }
+    });
 }
 
 template<typename Graph, typename VertexFunction>

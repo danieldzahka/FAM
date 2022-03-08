@@ -74,7 +74,7 @@ TEST_CASE("LocalGraph Construction", "[famgraph]")
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMap(
+  famgraph::EdgeMapSequential(
     graph, famgraph::VertexRange{ 0, graph.max_v() + 1 }, build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
@@ -97,7 +97,7 @@ TEST_CASE("RemoteGraph Construction", "[famgraph]")
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMap(
+  famgraph::EdgeMapSequential(
     graph, famgraph::VertexRange{ 0, graph.max_v() + 1 }, build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
@@ -226,7 +226,7 @@ TEST_CASE("Convert Vertex Set to Ranges with bounds")
       }
     }
   }
-  
+
   for (famgraph::VertexLabel v = 0; v <= max_v; ++v) {
     REQUIRE(comparison_set[v] == vertex_set[v]);
   }
@@ -264,7 +264,7 @@ TEST_CASE("Local Filter Edgemap")
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMap(graph, vertex_subset, build_edge_list);
+  famgraph::EdgeMapSequential(graph, vertex_subset, build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }
@@ -291,7 +291,7 @@ TEST_CASE("Remote Filter Edgemap")
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMap(graph, vertex_subset, build_edge_list);
+  famgraph::EdgeMapSequential(graph, vertex_subset, build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }
