@@ -89,7 +89,7 @@ public:
   static std::vector<famgraph::VertexRange> ConvertToRanges(
     VertexSubset const &vertex_subset) noexcept
   {
-    return ConvertToRanges(vertex_subset, 0, vertex_subset.max_v_);
+    return ConvertToRanges(vertex_subset, 0, vertex_subset.max_v_ + 1);
   }
 
   static std::vector<famgraph::VertexRange> ConvertToRanges(
@@ -99,7 +99,7 @@ public:
   {
     std::vector<famgraph::VertexRange> ret;
     const auto range_start = start;
-    const auto range_end_exclusive = end_exclusive + 1;
+    const auto range_end_exclusive = end_exclusive;
 
     unsigned int i = range_start;
     while (i < range_end_exclusive) {
