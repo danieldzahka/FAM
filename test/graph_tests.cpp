@@ -293,14 +293,11 @@ TEST_CASE("Local Filter Edgemap with Ranges")
   auto const end_exclusive = graph.max_v() + 1;
   auto const mid = end_exclusive / 2;
 
-  famgraph::PrintVertexSubset(vertex_subset);
+  famgraph::EdgeMapSequential(graph,
+    famgraph::VertexSubset::ConvertToRanges(vertex_subset, 0, mid), build_edge_list);
 
-  auto subset = famgraph::VertexSubset::ConvertToRanges(vertex_subset, 0, mid);
-  famgraph::EdgeMapSequential(graph, subset, build_edge_list);
-
-  auto subset2 =
-    famgraph::VertexSubset::ConvertToRanges(vertex_subset, mid, end_exclusive);
-  famgraph::EdgeMapSequential(graph, subset2, build_edge_list);
+  famgraph::EdgeMapSequential(graph,
+    famgraph::VertexSubset::ConvertToRanges(vertex_subset, mid, end_exclusive), build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }
@@ -328,6 +325,42 @@ TEST_CASE("Remote Filter Edgemap")
   };
 
   famgraph::EdgeMapSequential(graph, vertex_subset, build_edge_list);
+
+  CompareEdgeLists(edge_list, edge_list2);
+}
+
+TEST_CASE("Remote Filter Edgemap with Ranges")
+{
+  int const rdma_channels = 1;
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph>(
+    memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  auto vertex_subset = RandomVertexSet(graph.max_v(), gen);
+
+  auto plain_text_edge_list =
+    fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
+  auto filter = [&vertex_subset](std::uint32_t v) { return vertex_subset[v]; };
+  auto const edge_list = CreateEdgeList(plain_text_edge_list, filter);
+
+  std::vector<std::pair<uint32_t, uint32_t>> edge_list2;
+  auto build_edge_list = [&edge_list2](uint32_t const v,
+                           uint32_t const w,
+                           uint64_t const /*v_degree*/) noexcept {
+    edge_list2.emplace_back(std::make_pair(v, w));
+  };
+
+  auto const end_exclusive = graph.max_v() + 1;
+  auto const mid = end_exclusive / 2;
+
+  famgraph::EdgeMapSequential(graph,
+    famgraph::VertexSubset::ConvertToRanges(vertex_subset, 0, mid),
+    build_edge_list);
+
+  famgraph::EdgeMapSequential(graph,
+    famgraph::VertexSubset::ConvertToRanges(vertex_subset, mid, end_exclusive),
+    build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }
