@@ -12,6 +12,7 @@ set(MEMADDR "0.0.0.0:50051" CACHE STRING "IP of Memserver Ethernet Interface")
 set(MMAP_TEST1 "${CMAKE_CURRENT_SOURCE_DIR}/files/mmap_test1" CACHE STRING "test file for remote mmap")
 set(FGIDX_TEST1 "${CMAKE_CURRENT_SOURCE_DIR}/files/fgidxtest1.idx" CACHE STRING "test file for .idx")
 set(TEST_GRAPH_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test_graphs" CACHE STRING "Graph Inputs")
+set(LARGE_TEST_GRAPH_DIR "/netscratch/fam-graph" CACHE STRING "Large Graph Inputs")
 configure_file("constants.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/constants.hpp")
 
 add_executable(tests tests.cpp)
