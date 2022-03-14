@@ -87,6 +87,66 @@ const std::map<std::string_view, ConnectedComponentsResult>
     { twitter7_symmetric, { 2, 1, 41652230 } },
   };
 
+struct PageRankResult
+{
+  int iterations;
+  float tolerance;
+  std::vector<std::pair<famgraph::VertexLabel, float>> top20;
+};
+
+const std::map<std::string_view, PageRankResult> pagerank_output{
+  { twitter7,
+    { 94,
+      .001f,
+      {
+        { 41600, 14024.1 },
+        { 911417, 11151.9 },
+        { 1605291, 9421.92 },
+        { 15692599, 8328.66 },
+        { 2583597, 7921.08 },
+        { 271355, 6621.46 },
+        { 798058, 6523.61 },
+        { 677144, 4990.21 },
+        { 145987, 4752.83 },
+        { 3654935, 3130.98 },
+        { 11379732, 2830.07 },
+        { 142024, 2810.65 },
+        { 1040165, 2793.47 },
+        { 620972, 2760.91 },
+        { 5694562, 2736.49 },
+        { 1252091, 2665.83 },
+        { 172942, 2656.16 },
+        { 669889, 2644.37 },
+        { 2699568, 2574.65 },
+        { 1071824, 2557.81 },
+      } } },
+  { gnutella,
+    { 14,
+      1.0f,
+      {
+        { 1056, 1.82374 },
+        { 1054, 1.80341 },
+        { 1536, 1.49605 },
+        { 171, 1.47888 },
+        { 453, 1.42508 },
+        { 407, 1.38735 },
+        { 263, 1.3825 },
+        { 4664, 1.36403 },
+        { 1959, 1.32756 },
+        { 261, 1.32281 },
+        { 410, 1.31858 },
+        { 165, 1.31745 },
+        { 1198, 1.25505 },
+        { 127, 1.221 },
+        { 4054, 1.18981 },
+        { 2265, 1.17525 },
+        { 345, 1.17203 },
+        { 763, 1.17117 },
+        { 989, 1.14456 },
+        { 987, 1.13871 },
+      } } }
+};
+
 template<typename AdjacencyGraph = famgraph::LocalGraph, typename... Args>
 AdjacencyGraph CreateGraph(std::string_view graph_base, Args... args)
 {
@@ -133,15 +193,19 @@ void RunPageRank(Graph &graph, std::string_view graph_base)
 {
   auto page_rank = famgraph::PageRank(graph);
   auto result = page_rank();
-  fmt::print("Pagerank Iterations {}\n", result.iterations);
-  for (auto const &pair : result.topN) {
-    fmt::print("vertex: {}, value: {}\n", pair.second, pair.first);
+  auto reference = pagerank_output.at(graph_base);
+
+  REQUIRE(reference.top20.size() == result.topN.size());
+  const int iteration_tolerance = 5;
+  REQUIRE(
+    std::abs(reference.iterations - result.iterations) <= iteration_tolerance);
+  for (unsigned long i = 0; i < reference.top20.size(); ++i) {
+    REQUIRE(reference.top20[i].first == result.topN[i].second);
+    const auto percent_difference =
+      std::abs((reference.top20[i].second - result.topN[i].first)
+               / reference.top20[i].second);
+    REQUIRE(percent_difference < reference.tolerance);
   }
-  //  auto reference = connected_components_output.at(graph_base);
-  //  REQUIRE(result.components == reference.total_components);
-  //  REQUIRE(result.non_trivial_components ==
-  //  reference.non_trivial_components); REQUIRE(result.largest_component_size
-  //  == reference.largest_component_size);
 }
 }// namespace
 
@@ -238,4 +302,11 @@ TEST_CASE("Large Graph LocalGraph ConnectedComponents")
   auto graph_base = GENERATE(twitter7_symmetric);
   auto graph = CreateGraph(graph_base);
   RunConnectedComponents(graph, graph_base);
+}
+
+TEST_CASE("Large Graph LocalGraph PageRank")
+{
+  auto graph_base = GENERATE(twitter7);
+  auto graph = CreateGraph(graph_base);
+  RunPageRank(graph, graph_base);
 }

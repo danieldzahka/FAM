@@ -275,7 +275,7 @@ public:
 
   struct Result
   {
-    uint32_t iterations;
+    int iterations;
     std::vector<std::pair<float, VertexLabel>> topN;
   };
 
@@ -291,13 +291,12 @@ public:
     auto &graph = this->graph_;
     auto &adj_graph = graph.getAdjacencyGraph();
 
-    famgraph::VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
-      graph[v].value = 0.0;
-      graph[v].delta = INIT_RESIDUAL;
-      graph[v].residual = 0.0;
+    famgraph::VertexMap(graph, [&](Vertex &vertex, VertexLabel) noexcept {
+      vertex.value = 0.0;
+      vertex.delta = INIT_RESIDUAL;
+      vertex.residual = 0.0;
     });
-
-    // TODO: Check if I need to zero out delta here...
+    
     auto push =
       [&](uint32_t const v, uint32_t const w, uint64_t const n) noexcept {
         auto const my_delta = graph[v].delta;
@@ -306,7 +305,7 @@ public:
       };
 
     frontier->SetAll();
-    uint32_t iterations = 0;
+    int iterations = 0;
     while (!frontier->IsEmpty()) {
       EdgeMap(adj_graph, *frontier, push);
       VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
@@ -325,7 +324,6 @@ private:
   {
     std::vector<std::pair<float, VertexLabel>> topN;
     for (VertexLabel v = 0; v <= this->graph_.max_v(); ++v) {
-      // TODO: refaactor this if statement to || conditional
       if (topN.size() < n) {
         topN.push_back(std::make_pair(graph_[v].value, v));
         std::sort(topN.begin(), topN.end());
@@ -337,6 +335,7 @@ private:
       }
     }
 
+    std::reverse(topN.begin(), topN.end());
     return topN;
   }
 };
