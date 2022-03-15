@@ -222,6 +222,8 @@ TEST_CASE("RemoteGraph Breadth First Search")
   auto [graph_base, start_vertex] = GENERATE(
     BfsKey{ small, 0 }, BfsKey{ gnutella, 0 }, BfsKey{ last_vert_nonempty, 0 });
   int const rdma_channels = 1;
+  tbb::global_control c(
+    tbb::global_control::max_allowed_parallelism, rdma_channels);
   auto graph = CreateGraph<famgraph::RemoteGraph>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunBFS(graph, graph_base, start_vertex);
@@ -246,6 +248,8 @@ TEST_CASE("RemoteGraph Kcore Decomposition")
     KcoreKey{ gnutella_symmetric, 7 });
 
   int const rdma_channels = 1;
+  tbb::global_control c(
+    tbb::global_control::max_allowed_parallelism, rdma_channels);
   auto graph = CreateGraph<famgraph::RemoteGraph>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunKcore(graph, graph_base, k);
@@ -262,6 +266,8 @@ TEST_CASE("RemoteGraph ConnectedComponents")
 {
   auto graph_base = GENERATE(small_symmetric, gnutella_symmetric);
   int const rdma_channels = 1;
+  tbb::global_control c(
+    tbb::global_control::max_allowed_parallelism, rdma_channels);
   auto graph = CreateGraph<famgraph::RemoteGraph>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunConnectedComponents(graph, graph_base);
@@ -278,6 +284,8 @@ TEST_CASE("RemoteGraph PageRank")
 {
   auto graph_base = GENERATE(gnutella);
   int const rdma_channels = 1;
+  tbb::global_control c(
+    tbb::global_control::max_allowed_parallelism, rdma_channels);
   auto graph = CreateGraph<famgraph::RemoteGraph>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunPageRank(graph, graph_base);
