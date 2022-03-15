@@ -19,6 +19,13 @@ TEST_CASE("RPC Consruction", "[RPC]")
     FAM::FamControl{ memserver_grpc_addr, ipoib_addr, ipoib_port, 1 });
 }
 
+TEST_CASE("RPC Consruction Multi-Channel", "[RPC]")
+{
+  const auto rdma_channels = 10;
+  REQUIRE_NOTHROW(FAM::FamControl{
+    memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels });
+}
+
 TEST_CASE("RPC PING", "[RPC]")
 {
   FAM::FamControl client{ memserver_grpc_addr, ipoib_addr, ipoib_port, 1 };
@@ -91,6 +98,46 @@ TEST_CASE("rdma mmap", "[rdma]")
     std::vector<FAM::FamSegment> v = { FAM::FamSegment{ raddr, length },
       FAM::FamSegment{ raddr + length, length } };
     client.Read(const_cast<int *>(p), raddr, filesize, lkey, rkey, 0);
+    while (p[0] == magic || p[5] == magic) {}
+  }
+
+  for (int i = 0; i < 10; ++i) REQUIRE(p[i] == i);
+}
+
+TEST_CASE("rdma mmap multi-channel", "[rdma]")
+{
+  constexpr auto rdma_channels = 5;
+  FAM::FamControl client{
+    memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels
+  };
+
+  uint64_t constexpr filesize = 40;// bytes
+
+  auto const [laddr, l1, lkey] = client.CreateRegion(filesize, false, false);
+  auto const [raddr, l2, rkey] = client.MmapRemoteFile(mmap_test1);
+
+  REQUIRE(l2 == filesize);
+
+  volatile int *p = reinterpret_cast<int volatile *>(laddr);
+  constexpr auto magic = 0x0FFFFFFF;
+
+  const auto channel = GENERATE(0, 1, 2, 3, 4);
+
+  SECTION("Single Read")
+  {
+    *p = magic;
+    client.Read(const_cast<int *>(p), raddr, filesize, lkey, rkey, channel);
+    while (*p == magic) {}
+  }
+  SECTION("Vector Read")
+  {
+    p[0] = magic;
+    p[5] = magic;
+    // 0-4 5-9
+    auto const length = 5 * sizeof(uint32_t);
+    std::vector<FAM::FamSegment> v = { FAM::FamSegment{ raddr, length },
+      FAM::FamSegment{ raddr + length, length } };
+    client.Read(const_cast<int *>(p), raddr, filesize, lkey, rkey, channel);
     while (p[0] == magic || p[5] == magic) {}
   }
 
