@@ -155,8 +155,7 @@ famgraph::VertexRange famgraph::RemoteGraph::Iterator::MaximalRange(
   uint32_t range_start) noexcept
 {
   uint32_t range_end = range_start;
-  auto const edge_capacity =
-    this->graph_.edge_window_.length / sizeof(uint32_t);
+  auto const edge_capacity = this->edge_buffer_.length / sizeof(uint32_t);
 
   uint64_t edges_taken = 0;
   while (range_end < this->current_range_->end_exclusive) {
