@@ -175,9 +175,10 @@ public:
   };
 
   // TODO: Iterator constructor should take const & ranges
-  [[nodiscard]] Iterator GetIterator(std::vector<VertexRange> ranges,
-    int channel = 0) const noexcept
+  [[nodiscard]] Iterator GetIterator(
+    std::vector<VertexRange> ranges) const noexcept
   {
+    auto const channel = tbb::this_task_arena::current_thread_index();
     return Iterator(std::move(ranges), *this, channel);
   }
   [[nodiscard]] Iterator GetIterator(VertexRange const &range,
