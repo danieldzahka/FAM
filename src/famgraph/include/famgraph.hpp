@@ -14,6 +14,8 @@ using VertexLabel = std::uint32_t;
 using EdgeIndexType = std::uint64_t;
 constexpr uint32_t null_vert = std::numeric_limits<std::uint32_t>::max();
 
+enum class TbbDispatch { USE_TBB };
+
 struct VertexRange
 {
   uint32_t start;
@@ -175,10 +177,17 @@ public:
   };
 
   // TODO: Iterator constructor should take const & ranges
+  [[nodiscard]] Iterator GetIterator(std::vector<VertexRange> ranges,
+    TbbDispatch) const noexcept
+  {
+    auto const channel = tbb::this_task_arena::current_thread_index();
+    return Iterator(std::move(ranges), *this, channel);
+  }
+
   [[nodiscard]] Iterator GetIterator(
     std::vector<VertexRange> ranges) const noexcept
   {
-    auto const channel = tbb::this_task_arena::current_thread_index();
+    auto const channel = 0;
     return Iterator(std::move(ranges), *this, channel);
   }
   [[nodiscard]] Iterator GetIterator(VertexRange const &range,
@@ -217,8 +226,8 @@ public:
   };
 
   // TODO: Iterator constructor should take const & ranges
-  [[nodiscard]] Iterator GetIterator(
-    std::vector<VertexRange> ranges) const noexcept
+  [[nodiscard]] Iterator GetIterator(std::vector<VertexRange> ranges,
+    TbbDispatch dispath = TbbDispatch::USE_TBB) const noexcept
   {
     return Iterator(std::move(ranges), *this);
   }
@@ -256,12 +265,16 @@ public:
   }
 };
 
-template<typename Graph, typename VertexSet, typename VertexProgram>
+template<typename Graph,
+  typename VertexSet,
+  typename VertexProgram,
+  typename... Args>
 void EdgeMapSequential(Graph &graph,
   VertexSet const &vertex_subset,
-  VertexProgram &f) noexcept
+  VertexProgram &f,
+  Args... args) noexcept
 {
-  auto iterator = graph.GetIterator(vertex_subset);
+  auto iterator = graph.GetIterator(vertex_subset, args...);
   while (iterator.HasNext()) {
     auto const [v, n, edges] = iterator.Next();
     for (unsigned long i = 0; i < n; ++i) f(v, edges[i], n);
@@ -277,7 +290,7 @@ void EdgeMap(Graph &graph,
     [&](auto const my_range) {
       auto const rs =
         VertexSubset::ConvertToRanges(subset, my_range.begin(), my_range.end());
-      EdgeMapSequential(graph, rs, f);
+      EdgeMapSequential(graph, rs, f, TbbDispatch::USE_TBB);
     });
 }
 
