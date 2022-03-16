@@ -13,7 +13,10 @@ set(MMAP_TEST1 "${CMAKE_CURRENT_SOURCE_DIR}/files/mmap_test1" CACHE STRING "test
 set(FGIDX_TEST1 "${CMAKE_CURRENT_SOURCE_DIR}/files/fgidxtest1.idx" CACHE STRING "test file for .idx")
 set(TEST_GRAPH_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test_graphs" CACHE STRING "Graph Inputs")
 set(LARGE_TEST_GRAPH_DIR "/netscratch/fam-graph" CACHE STRING "Large Graph Inputs")
+set(MEMSERVER_IPOIB "192.168.12.2" CACHE STRING "IP of InfiniBand Interface")
+set(MEMSERVER_RDMA_PORT "35287" CACHE STRING "Port of InfiniBand Interface")
 configure_file("constants.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/constants.hpp")
+
 
 add_executable(tests tests.cpp)
 target_link_libraries(tests PRIVATE project_warnings project_options catch_main FAM)

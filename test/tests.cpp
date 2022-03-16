@@ -8,8 +8,8 @@
 
 namespace {
 auto const memserver_grpc_addr = MEMADDR;
-auto const ipoib_addr = "192.168.12.2";
-auto const ipoib_port = "35287";
+auto constexpr ipoib_addr = MEMSERVER_IPOIB;
+auto constexpr ipoib_port = MEMSERVER_RDMA_PORT;
 auto const mmap_test1 = MMAP_TEST1;
 }// namespace
 
