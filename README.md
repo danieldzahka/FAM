@@ -7,7 +7,7 @@
 We use conan for installing C++ dependencies. To install conan:
 
 ```shell
-pip install --user conan
+pip3 install --user conan
 conan --version #check if conan executable is on path. May need PATH=$PATH:$HOME/.local/bin
 ```
 
