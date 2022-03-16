@@ -110,6 +110,7 @@ bool famgraph::RemoteGraph::Iterator::HasNext() noexcept
     if (this->current_vertex_ < this->current_range_->end_exclusive)
       return true;
     ++this->current_range_;
+    if (this->current_range_ == this->ranges_.cend()) return false;
     this->current_vertex_ = this->current_range_->start;
   }
   return false;
@@ -213,6 +214,7 @@ bool famgraph::LocalGraph::Iterator::HasNext() noexcept
     if (this->current_vertex_ < this->current_range_->end_exclusive)
       return true;
     ++this->current_range_;
+    if (this->current_range_ == this->ranges_.cend()) return false;
     this->current_vertex_ = this->current_range_->start;
   }
   return false;
