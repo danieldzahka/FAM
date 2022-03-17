@@ -296,7 +296,7 @@ public:
       vertex.delta = INIT_RESIDUAL;
       vertex.residual = 0.0;
     });
-    
+
     auto push =
       [&](uint32_t const v, uint32_t const w, uint64_t const n) noexcept {
         auto const my_delta = graph[v].delta;

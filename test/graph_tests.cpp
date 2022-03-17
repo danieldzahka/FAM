@@ -294,10 +294,12 @@ TEST_CASE("Local Filter Edgemap with Ranges")
   auto const mid = end_exclusive / 2;
 
   famgraph::EdgeMapSequential(graph,
-    famgraph::VertexSubset::ConvertToRanges(vertex_subset, 0, mid), build_edge_list);
+    famgraph::VertexSubset::ConvertToRanges(vertex_subset, 0, mid),
+    build_edge_list);
 
   famgraph::EdgeMapSequential(graph,
-    famgraph::VertexSubset::ConvertToRanges(vertex_subset, mid, end_exclusive), build_edge_list);
+    famgraph::VertexSubset::ConvertToRanges(vertex_subset, mid, end_exclusive),
+    build_edge_list);
 
   CompareEdgeLists(edge_list, edge_list2);
 }

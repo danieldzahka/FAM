@@ -40,11 +40,10 @@ fgidx::DenseIndex fgidx::DenseIndex::CreateInstance(std::string const &filepath,
     if (static_cast<unsigned long>(input.gcount()) != sizeof(uint64_t)) {
       throw std::runtime_error("can't Read index data");
     }
-
   }
 
   uint64_t max_out_degree = 0;
-  for (uint64_t i = 0; i < verts; ++i){
+  for (uint64_t i = 0; i < verts; ++i) {
     max_out_degree = std::max(max_out_degree, idx[i + 1] - idx[i]);
   }
   return fgidx::DenseIndex{
