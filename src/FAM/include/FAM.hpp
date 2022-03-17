@@ -20,7 +20,7 @@ class FamControl
 
 public:
   int const rdma_channels_;
-  
+
   struct RemoteRegion
   {
     uint64_t raddr;
