@@ -116,8 +116,7 @@ public:
   }
 
   // There is no shutdown handling in this code.
-  void Run(std::string const &server_address,
-    std::uint64_t const &memserver_port)
+  void Run(std::string const &server_address, const uint64_t memserver_port)
   {
     ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
@@ -358,7 +357,7 @@ private:
 
 void FAM::server::RunServer(std::string const &host,
   std::string const &port,
-  std::uint64_t const &memserver_port)
+  const uint64_t memserver_port)
 {
   spdlog::set_level(spdlog::level::debug);
   ServerImpl server;

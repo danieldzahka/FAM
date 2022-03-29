@@ -56,7 +56,7 @@ namespace rdma {
       decltype(del)>(id, del);
   }
 
-  void inline bind_addr(rdma_cm_id *const id, uint64_t const &memserver_port)
+  void inline bind_addr(rdma_cm_id *const id, const uint64_t memserver_port)
   {
     sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
