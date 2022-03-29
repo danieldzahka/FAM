@@ -14,8 +14,8 @@ using namespace std::literals::string_view_literals;
 auto constexpr INPUTS_DIR = TEST_GRAPH_DIR;
 auto constexpr LARGE_INPUTS_DIR = LARGE_TEST_GRAPH_DIR;
 auto constexpr memserver_grpc_addr = MEMADDR;
-auto constexpr ipoib_addr = "192.168.12.2";
-auto constexpr ipoib_port = "35287";
+auto constexpr ipoib_addr = MEMSERVER_IPOIB;
+auto constexpr ipoib_port = MEMSERVER_RDMA_PORT;
 
 static constexpr int threads = 10;
 
