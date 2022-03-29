@@ -9,7 +9,9 @@
 
 namespace FAM {
 namespace server {
-  void RunServer(std::string const &host, std::string const &port, std::uint64_t const &memserver_port);
+  void RunServer(std::string const &host,
+    std::string const &port,
+    std::uint64_t const &memserver_port);
 }// namespace server
 class FamControl
 {
