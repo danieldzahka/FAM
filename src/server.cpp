@@ -15,7 +15,8 @@ int main(int argc, const char **argv)
   desc.add_options()("help,h", "Help screen")("server-addr,a",
     po::value<std::string>()->default_value("0.0.0.0"),
     "Server's IPoIB addr")(
-    "port,p", po::value<std::string>()->default_value("50051"), "server port");
+    "port,p", po::value<std::string>()->default_value("50051"), "server port")(
+    "memserver-port, m", po::value<std::uint64_t>()->default_value(35287));
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
@@ -32,10 +33,11 @@ int main(int argc, const char **argv)
 
   auto const host = vm["server-addr"].as<std::string>();
   auto const port = vm["port"].as<std::string>();
+  auto const memserver_port = vm["memserver-port"].as<std::uint64_t>();
 
   spdlog::info("Starting Server");
   try {
-    FAM::server::RunServer(host, port);
+    FAM::server::RunServer(host, port, memserver_port);
   } catch (std::exception const &e) {
     spdlog::error("Caught Runtime Exception {}", e.what());
   }

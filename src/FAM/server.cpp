@@ -116,7 +116,7 @@ public:
   }
 
   // There is no shutdown handling in this code.
-  void Run(std::string const &server_address)
+  void Run(std::string const &server_address, const uint64_t memserver_port)
   {
     ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
@@ -128,7 +128,7 @@ public:
 
     auto ec = FAM::rdma::CreateEventChannel();
     auto id = FAM::rdma::CreateRdmaId(ec.get());
-    FAM::rdma::bind_addr(id.get());
+    FAM::rdma::bind_addr(id.get(), memserver_port);
     FAM::rdma::listen(id.get());
     auto const rdma_port = ntohs(rdma_get_src_port(id.get()));
     auto addr = rdma_get_local_addr(id.get());
@@ -355,9 +355,11 @@ private:
 };
 }// namespace
 
-void FAM::server::RunServer(std::string const &host, std::string const &port)
+void FAM::server::RunServer(std::string const &host,
+  std::string const &port,
+  const uint64_t memserver_port)
 {
   spdlog::set_level(spdlog::level::debug);
   ServerImpl server;
-  server.Run(fmt::format("{}:{}", host, port));
+  server.Run(fmt::format("{}:{}", host, port), memserver_port);
 }

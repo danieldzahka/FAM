@@ -56,12 +56,12 @@ namespace rdma {
       decltype(del)>(id, del);
   }
 
-  void inline bind_addr(rdma_cm_id *const id)
+  void inline bind_addr(rdma_cm_id *const id, const uint64_t memserver_port)
   {
     sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(static_cast<uint16_t>(35287));
+    addr.sin_port = htons(static_cast<uint16_t>(memserver_port));
     auto const err =
       rdma_bind_addr(id, reinterpret_cast<struct sockaddr *>(&addr));
     if (err) throw std::runtime_error("rdma_bind_addr() failed");
