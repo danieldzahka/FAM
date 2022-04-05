@@ -97,7 +97,8 @@ TEST_CASE("rdma mmap", "[rdma]")
     auto const length = 5 * sizeof(uint32_t);
     std::vector<FAM::FamSegment> v = { FAM::FamSegment{ raddr, length },
       FAM::FamSegment{ raddr + length, length } };
-    client.Read(const_cast<int *>(p), raddr, filesize, lkey, rkey, 0);
+    //client.Read(const_cast<int *>(p), raddr, filesize, lkey, rkey, 0);
+    client.Read(const_cast<int *>(p), v, lkey, rkey, 0);
     while (p[0] == magic || p[5] == magic) {}
   }
 
@@ -137,7 +138,8 @@ TEST_CASE("rdma mmap multi-channel", "[rdma]")
     auto const length = 5 * sizeof(uint32_t);
     std::vector<FAM::FamSegment> v = { FAM::FamSegment{ raddr, length },
       FAM::FamSegment{ raddr + length, length } };
-    client.Read(const_cast<int *>(p), raddr, filesize, lkey, rkey, channel);
+    //client.Read(const_cast<int *>(p), raddr, filesize, lkey, rkey, channel);
+    client.Read(const_cast<int *>(p), v, lkey, rkey, channel);
     while (p[0] == magic || p[5] == magic) {}
   }
 
