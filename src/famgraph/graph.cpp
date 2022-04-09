@@ -122,7 +122,7 @@ famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
   auto const v = this->current_vertex_++;
   if (v >= this->current_window_.end_exclusive) {
     this->current_window_ = this->MaximalRange(v);
-    this->FillWindow(this->current_window_);
+    this->FillWindow({this->current_window_});
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
   }
 
@@ -148,7 +148,7 @@ famgraph::RemoteGraph::Iterator::Iterator(std::vector<VertexRange> &&ranges,
 {
   if (this->HasNext()) {
     this->current_window_ = this->MaximalRange(this->current_range_->start);
-    this->FillWindow(this->current_window_);
+    this->FillWindow({this->current_window_});
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
   }
 }
@@ -174,30 +174,39 @@ famgraph::VertexRange famgraph::RemoteGraph::Iterator::MaximalRange(
   return { range_start, range_end };
 }
 void famgraph::RemoteGraph::Iterator::FillWindow(
-  famgraph::VertexRange range) noexcept
+  std::vector<famgraph::VertexRange> range_list) noexcept
 {
-  if (range.start >= range.end_exclusive) return;
+  if (range_list.size() == 0) return;
+  if (range_list.front().start >= range_list.back().end_exclusive) return;
   auto *edges = static_cast<uint32_t volatile *>(this->edge_buffer_.p);
-  auto const &start = this->graph_.idx_[range.start].begin;
-  auto const &end_exclusive =
-    this->graph_.idx_[range.end_exclusive - 1].end_exclusive;
-  auto const length = end_exclusive - start;
-  auto const end = length - 1;
+  auto end = 0;
 
-  if (length == 0) return;
+  // Setup FamSegment Vector
+  std::vector<FAM::FamSegment> fam_segments;
+  for (auto& range : range_list) {
+    auto const &start = this->graph_.idx_[range.start].begin;
+    auto const &end_exclusive =
+      this->graph_.idx_[range.end_exclusive - 1].end_exclusive;
+    auto const length = end_exclusive - start;
+    if (length == 0) continue;
+
+    auto const raddr =
+      this->graph_.adjacency_array_.raddr + start * sizeof(uint32_t);
+    fam_segments.push_back({raddr, (uint32_t) length});
+    end = end + length;
+  }
+  end -= 1;
 
   // 1) sign edge window
   edges[0] = famgraph::null_vert;
   edges[end] = famgraph::null_vert;
-
   // 2) post rdma
-  auto const raddr =
-    this->graph_.adjacency_array_.raddr + start * sizeof(uint32_t);
+
   auto const rkey = this->graph_.adjacency_array_.rkey;
   auto const lkey = this->graph_.edge_window_.lkey;
+
   this->graph_.fam_control_->Read(this->edge_buffer_.p,
-    raddr,
-    length * sizeof(uint32_t),
+    fam_segments,
     lkey,
     rkey,
     this->channel_);
