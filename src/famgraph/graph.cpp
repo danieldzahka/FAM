@@ -122,7 +122,7 @@ famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
   auto const v = this->current_vertex_++;
   if (v >= this->current_window_.end_exclusive) {
     this->current_window_ = this->MaximalRange(v);
-    this->FillWindow({this->current_window_});
+    this->FillWindow({ this->current_window_ });
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
   }
 
@@ -148,7 +148,7 @@ famgraph::RemoteGraph::Iterator::Iterator(std::vector<VertexRange> &&ranges,
 {
   if (this->HasNext()) {
     this->current_window_ = this->MaximalRange(this->current_range_->start);
-    this->FillWindow({this->current_window_});
+    this->FillWindow({ this->current_window_ });
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
   }
 }
@@ -183,7 +183,7 @@ void famgraph::RemoteGraph::Iterator::FillWindow(
 
   // Setup FamSegment Vector
   std::vector<FAM::FamSegment> fam_segments;
-  for (auto& range : range_list) {
+  for (auto &range : range_list) {
     auto const &start = this->graph_.idx_[range.start].begin;
     auto const &end_exclusive =
       this->graph_.idx_[range.end_exclusive - 1].end_exclusive;
@@ -192,7 +192,7 @@ void famgraph::RemoteGraph::Iterator::FillWindow(
 
     auto const raddr =
       this->graph_.adjacency_array_.raddr + start * sizeof(uint32_t);
-    fam_segments.push_back({raddr, (uint32_t) length});
+    fam_segments.push_back({ raddr, (uint32_t)length });
     end = end + length;
   }
   end -= 1;
@@ -205,11 +205,8 @@ void famgraph::RemoteGraph::Iterator::FillWindow(
   auto const rkey = this->graph_.adjacency_array_.rkey;
   auto const lkey = this->graph_.edge_window_.lkey;
 
-  this->graph_.fam_control_->Read(this->edge_buffer_.p,
-    fam_segments,
-    lkey,
-    rkey,
-    this->channel_);
+  this->graph_.fam_control_->Read(
+    this->edge_buffer_.p, fam_segments, lkey, rkey, this->channel_);
 
   // 3) wait on data
   while (edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {
