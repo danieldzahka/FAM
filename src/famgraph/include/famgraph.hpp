@@ -165,7 +165,7 @@ public:
     int const channel_;
 
     VertexRange MaximalRange(uint32_t range_start) noexcept;
-    void FillWindow(VertexRange range) noexcept;
+    void FillWindow(std::vector<VertexRange> range_list) noexcept;
 
   public:
     Iterator(std::vector<VertexRange> &&ranges,
