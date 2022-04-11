@@ -122,7 +122,7 @@ famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
   auto const v = this->current_vertex_++;
   if (v >= this->current_window_[this->current_window_.size() - 1].end_exclusive) {
     this->current_window_ = this->MaximalRange(v);
-    this->FillWindow({this->current_window_});
+    this->FillWindow(this->current_window_);
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
   }
 
