@@ -204,9 +204,12 @@ void famgraph::RemoteGraph::Iterator::FillWindow(
 
     auto const raddr =
       this->graph_.adjacency_array_.raddr + start * sizeof(uint32_t);
-    fam_segments.push_back({raddr, (uint32_t) length});
+fam_segments.push_back({raddr, (uint32_t) (length * sizeof(uint32_t))});
     end = end + length;
   }
+
+  if(end == 0) return;
+
   end -= 1;
 
   // 1) sign edge window
