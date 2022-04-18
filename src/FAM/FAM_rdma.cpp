@@ -208,6 +208,7 @@ void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
     auto const [raddr, length] = segs[i];
     prep_wr(
       WR, laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_READ, flags, next);
+    laddr += length;
   }
 
   struct ibv_send_wr *bad_wr = nullptr;

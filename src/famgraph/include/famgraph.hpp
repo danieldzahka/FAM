@@ -6,13 +6,15 @@
 #include <cstdint>
 #include <fgidx.hpp>
 #include <FAM.hpp>
-
+#include <FAM_constants.hpp>
 #include <oneapi/tbb.h>
 
 namespace famgraph {
 using VertexLabel = std::uint32_t;
 using EdgeIndexType = std::uint64_t;
 constexpr uint32_t null_vert = std::numeric_limits<std::uint32_t>::max();
+
+constexpr unsigned long max_outstanding_wr = FAM::max_outstanding_wr;
 
 enum class TbbDispatch { USE_TBB };
 
@@ -157,14 +159,14 @@ public:
   {
     std::vector<VertexRange> const ranges_;
     decltype(ranges_.begin()) current_range_;
-    VertexRange current_window_;
+    std::vector<VertexRange> current_window_;
     uint32_t current_vertex_;
     RemoteGraph const &graph_;
     Buffer edge_buffer_;
     uint32_t *cursor;
     int const channel_;
 
-    VertexRange MaximalRange(uint32_t range_start) noexcept;
+    std::vector<famgraph::VertexRange> MaximalRange(uint32_t range_start) noexcept;
     void FillWindow(std::vector<VertexRange> range_list) noexcept;
 
   public:
