@@ -202,7 +202,8 @@ void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
   auto id = this->ids[channel].get();
   for (unsigned long i = 0; i < segs.size(); ++i) {
     auto next = i < segs.size() - 1 ? &this->wrs[channel][i + 1].wr : nullptr;
-    auto const flags = static_cast<const ibv_send_flags>(i == segs.size() - 1 ? IBV_SEND_SIGNALED : 0);
+    auto const flags = static_cast<const ibv_send_flags>(
+      i == segs.size() - 1 ? IBV_SEND_SIGNALED : 0);
     auto &WR = this->wrs[channel][i];
     auto const [raddr, length] = segs[i];
     prep_wr(

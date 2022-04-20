@@ -161,7 +161,8 @@ std::vector<famgraph::VertexRange>
   auto const edge_capacity = this->edge_buffer_.length / sizeof(uint32_t);
 
   uint64_t edges_taken = 0;
-  while(edges_taken < edge_capacity && vertex_runs.size() < famgraph::max_outstanding_wr) {
+  while (edges_taken < edge_capacity
+         && vertex_runs.size() < famgraph::max_outstanding_wr) {
     while (range_end < this->current_range_->end_exclusive) {
 
       auto const [start_inclusive, end_exclusive] =
@@ -175,8 +176,8 @@ std::vector<famgraph::VertexRange>
         break;
       }
     }
-    vertex_runs.push_back({range_start, range_end});
-    if(this->current_range_ != this->ranges_.cend()) {
+    vertex_runs.push_back({ range_start, range_end });
+    if (this->current_range_ != this->ranges_.cend()) {
       ++this->current_range_;
       this->current_vertex_ = this->current_range_->start;
       range_start = this->current_vertex_;
