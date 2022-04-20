@@ -148,7 +148,7 @@ famgraph::RemoteGraph::Iterator::Iterator(std::vector<VertexRange> &&ranges,
 {
   if (this->HasNext()) {
     this->current_window_ = this->MaximalRange(this->current_range_->start);
-    this->FillWindow({this->current_window_});
+    this->FillWindow(this->current_window_);
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
   }
 }
@@ -160,7 +160,7 @@ std::vector<famgraph::VertexRange> famgraph::RemoteGraph::Iterator::MaximalRange
   auto const edge_capacity = this->edge_buffer_.length / sizeof(uint32_t);
 
   uint64_t edges_taken = 0;
-  while(edges_taken <= edge_capacity && vertex_runs.size() < famgraph::max_outstanding_wr) {
+  while(edges_taken < edge_capacity && vertex_runs.size() < famgraph::max_outstanding_wr) {
     while (range_end < this->current_range_->end_exclusive) {
 
       auto const [start_inclusive, end_exclusive] =
@@ -175,9 +175,11 @@ std::vector<famgraph::VertexRange> famgraph::RemoteGraph::Iterator::MaximalRange
       }
     }
     vertex_runs.push_back({range_start, range_end});
-    if(this->current_range_ < this->ranges_.cend()) {
+    if(this->current_range_ != this->ranges_.cend()) {
       ++this->current_range_;
       this->current_vertex_ = this->current_range_->start;
+      range_start = this->current_vertex_;
+      range_end = range_start;
     } else {
       break;
     }
@@ -225,6 +227,13 @@ fam_segments.push_back({raddr, (uint32_t) (length * sizeof(uint32_t))});
     lkey,
     rkey,
     this->channel_);
+
+//  this->graph_.fam_control_->Read(this->edge_buffer_.p,
+//    fam_segments[0].raddr,
+//    fam_segments[0].length,
+//    lkey,
+//    rkey,
+//    this->channel_);
 
   // 3) wait on data
   while (edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {
