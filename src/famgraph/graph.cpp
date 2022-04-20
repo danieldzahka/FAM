@@ -120,7 +120,8 @@ bool famgraph::RemoteGraph::Iterator::HasNext() noexcept
 famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
 {
   auto const v = this->current_vertex_++;
-  if (v >= this->current_window_[this->current_window_.size() - 1].end_exclusive) {
+  if (v >= this->current_window_[this->current_window_.size() - 1]
+             .end_exclusive) {
     this->current_window_ = this->MaximalRange(v);
     this->FillWindow(this->current_window_);
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
@@ -152,8 +153,8 @@ famgraph::RemoteGraph::Iterator::Iterator(std::vector<VertexRange> &&ranges,
     this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
   }
 }
-std::vector<famgraph::VertexRange> famgraph::RemoteGraph::Iterator::MaximalRange(
-  uint32_t range_start) noexcept
+std::vector<famgraph::VertexRange>
+  famgraph::RemoteGraph::Iterator::MaximalRange(uint32_t range_start) noexcept
 {
   std::vector<famgraph::VertexRange> vertex_runs;
   uint32_t range_end = range_start;
@@ -197,7 +198,7 @@ void famgraph::RemoteGraph::Iterator::FillWindow(
 
   // Setup FamSegment Vector
   std::vector<FAM::FamSegment> fam_segments;
-  for (auto& range : range_list) {
+  for (auto &range : range_list) {
     auto const &start = this->graph_.idx_[range.start].begin;
     auto const &end_exclusive =
       this->graph_.idx_[range.end_exclusive - 1].end_exclusive;
@@ -206,11 +207,11 @@ void famgraph::RemoteGraph::Iterator::FillWindow(
 
     auto const raddr =
       this->graph_.adjacency_array_.raddr + start * sizeof(uint32_t);
-fam_segments.push_back({raddr, (uint32_t) (length * sizeof(uint32_t))});
+    fam_segments.push_back({ raddr, (uint32_t)(length * sizeof(uint32_t)) });
     end = end + length;
   }
 
-  if(end == 0) return;
+  if (end == 0) return;
 
   end -= 1;
 
@@ -222,18 +223,8 @@ fam_segments.push_back({raddr, (uint32_t) (length * sizeof(uint32_t))});
   auto const rkey = this->graph_.adjacency_array_.rkey;
   auto const lkey = this->graph_.edge_window_.lkey;
 
-  this->graph_.fam_control_->Read(this->edge_buffer_.p,
-    fam_segments,
-    lkey,
-    rkey,
-    this->channel_);
-
-//  this->graph_.fam_control_->Read(this->edge_buffer_.p,
-//    fam_segments[0].raddr,
-//    fam_segments[0].length,
-//    lkey,
-//    rkey,
-//    this->channel_);
+  this->graph_.fam_control_->Read(
+    this->edge_buffer_.p, fam_segments, lkey, rkey, this->channel_);
 
   // 3) wait on data
   while (edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {

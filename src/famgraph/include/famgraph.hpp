@@ -166,7 +166,8 @@ public:
     uint32_t *cursor;
     int const channel_;
 
-    std::vector<famgraph::VertexRange> MaximalRange(uint32_t range_start) noexcept;
+    std::vector<famgraph::VertexRange> MaximalRange(
+      uint32_t range_start) noexcept;
     void FillWindow(std::vector<VertexRange> range_list) noexcept;
 
   public:
