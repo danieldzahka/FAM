@@ -1,54 +1,64 @@
 cmake_minimum_required(VERSION 3.15)
 
-# Set the project name to your project name, my project isn't very descriptive
-project(FAM CXX)
-include(cmake/StandardProjectSettings.cmake)
-include(cmake/PreventInSourceBuilds.cmake)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Link this 'library' to set the c++ standard / compile-time options requested
-add_library(project_options INTERFACE)
-target_compile_features(project_options INTERFACE cxx_std_17)
+set(ENABLE_DEVELOPER_MODE
+        FALSE
+        CACHE BOOL "Enable 'developer mode'")
 
-if (CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
-    option(ENABLE_BUILD_WITH_TIME_TRACE "Enable -ftime-trace to generate time tracing .json files on clang" OFF)
-    if (ENABLE_BUILD_WITH_TIME_TRACE)
-        target_compile_options(project_options INTERFACE -ftime-trace)
+set(WARNINGS_AS_ERRORS_DEVELOPER_DEFAULT FALSE)
+
+include(FetchContent)
+FetchContent_Declare(_project_options
+        URL https://github.com/cpp-best-practices/project_options/archive/refs/tags/v0.17.0.zip)
+FetchContent_MakeAvailable(_project_options)
+include(${_project_options_SOURCE_DIR}/Index.cmake)
+
+project(
+        FAM
+        VERSION 0.0.1
+        DESCRIPTION ""
+        HOMEPAGE_URL "https://github.com/danieldzahka/FAM"
+        LANGUAGES CXX C)
+
+set(GIT_SHA
+        "Unknown"
+        CACHE STRING "SHA this build was generated from")
+string(
+        SUBSTRING "${GIT_SHA}"
+        0
+        8
+        GIT_SHORT_SHA)
+
+get_property(BUILDING_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if (BUILDING_MULTI_CONFIG)
+    if (NOT CMAKE_BUILD_TYPE)
+        message(TRACE "Setting up multi-config build types")
+        set(CMAKE_CONFIGURATION_TYPES
+                Debug
+                Release
+                RelWithDebInfo
+                MinSizeRel
+                CACHE STRING "Enabled build types" FORCE)
+    else ()
+        message(TRACE "User chose a specific build type, so we are using that")
+        set(CMAKE_CONFIGURATION_TYPES
+                ${CMAKE_BUILD_TYPE}
+                CACHE STRING "Enabled build types" FORCE)
     endif ()
 endif ()
 
-# Link this 'library' to use the warnings specified in CompilerWarnings.cmake
-add_library(project_warnings INTERFACE)
+include(${_project_options_SOURCE_DIR}/src/DynamicProjectOptions.cmake)
 
-# enable cache system
-include(cmake/Cache.cmake)
-
-# Add linker configuration
-include(cmake/Linker.cmake)
-configure_linker(project_options)
-
-# standard compiler warnings
-include(cmake/CompilerWarnings.cmake)
-set_project_warnings(project_warnings)
-
-# sanitizer options if supported by compiler
-include(cmake/Sanitizers.cmake)
-enable_sanitizers(project_options)
-
-# allow for static analysis options
-include(cmake/StaticAnalyzers.cmake)
-
-option(BUILD_SHARED_LIBS "Enable compilation of shared libraries" OFF)
-option(ENABLE_TESTING "Enable Test Builds" ON)
-
-option(ENABLE_CONAN "Use Conan for dependency management" ON)
-if (ENABLE_CONAN)
-    include(cmake/Conan.cmake)
-    run_conan()
-endif ()
+dynamic_project_options()
+target_compile_features(project_options INTERFACE cxx_std_${CMAKE_CXX_STANDARD})
 
 add_subdirectory(src)
 
+option(ENABLE_TESTING "Enable the tests" ON)
 if (ENABLE_TESTING)
     enable_testing()
+    message("Building Tests")
     add_subdirectory(test)
 endif ()
