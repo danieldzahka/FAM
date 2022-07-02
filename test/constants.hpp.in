@@ -3,6 +3,7 @@
 
 #cmakedefine MEMADDR "@MEMADDR@"
 #cmakedefine MMAP_TEST1 "@MMAP_TEST1@"
+#cmakedefine MMAP_TEST2 "@MMAP_TEST2@"
 #cmakedefine FGIDX_TEST1 "@FGIDX_TEST1@"
 #cmakedefine TEST_GRAPH_DIR "@TEST_GRAPH_DIR@"
 #cmakedefine LARGE_TEST_GRAPH_DIR "@LARGE_TEST_GRAPH_DIR@"

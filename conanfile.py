@@ -11,5 +11,6 @@ class FAM(ConanFile):
         "spdlog/1.9.2",
         "boost/1.77.0",
         "grpc/1.43.0",
+        "range-v3/0.12.0",
     )
     generators = "cmake", "gcc", "txt", "cmake_find_package"

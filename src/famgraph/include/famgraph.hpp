@@ -1,11 +1,13 @@
 #ifndef __FAMGRAPH_H__
 #define __FAMGRAPH_H__
 
+#include <range/v3/all.hpp>
 #include <memory>
 #include <cstring>
 #include <cstdint>
 #include <fgidx.hpp>
 #include <FAM.hpp>
+#include <FAM_constants.hpp>
 
 #include <oneapi/tbb.h>
 
@@ -53,7 +55,7 @@ public:
 
   bool Set(std::uint32_t v) noexcept
   {
-    auto &word = this->bitmap_[Offset(v)];
+    auto& word = this->bitmap_[Offset(v)];
     auto const bit_offset = BitOffset(v);
     auto prev = __sync_fetch_and_or(&word, 1UL << bit_offset);
     bool const was_unset = !(prev & (1UL << bit_offset));
@@ -89,25 +91,25 @@ public:
   }
 
   static std::vector<famgraph::VertexRange> ConvertToRanges(
-    VertexSubset const &vertex_subset) noexcept
+    VertexSubset const& vertex_subset) noexcept
   {
     return ConvertToRanges(vertex_subset, 0, vertex_subset.max_v_ + 1);
   }
 
   static std::vector<famgraph::VertexRange> ConvertToRanges(
-    VertexSubset const &vertex_subset,
+    VertexSubset const& vertex_subset,
     VertexLabel start,
     VertexLabel end_exclusive) noexcept
   {
     std::vector<famgraph::VertexRange> ret;
-    const auto range_start = start;
-    const auto range_end_exclusive = end_exclusive;
+    auto const range_start = start;
+    auto const range_end_exclusive = end_exclusive;
 
     unsigned int i = range_start;
     while (i < range_end_exclusive) {
       if (vertex_subset[i]) {
         ret.push_back({ i, i });
-        auto &current_range = ret.back();
+        auto& current_range = ret.back();
         while (i < range_end_exclusive && vertex_subset[i]) {
           current_range.end_exclusive = ++i;
         }
@@ -120,7 +122,7 @@ public:
   uint32_t GetMaxV() const noexcept;
 };
 
-void PrintVertexSubset(VertexSubset const &vertex_subset) noexcept;
+void PrintVertexSubset(VertexSubset const& vertex_subset) noexcept;
 
 class RemoteGraph
 {
@@ -129,17 +131,17 @@ class RemoteGraph
   FAM::FamControl::RemoteRegion const adjacency_array_;
   FAM::FamControl::LocalRegion edge_window_;
 
-  RemoteGraph(fgidx::DenseIndex &&idx,
-    std::unique_ptr<FAM::FamControl> &&fam_control,
+  RemoteGraph(fgidx::DenseIndex&& idx,
+    std::unique_ptr<FAM::FamControl>&& fam_control,
     FAM::FamControl::RemoteRegion adjacency_array,
     FAM::FamControl::LocalRegion edge_window);
 
 public:
-  static famgraph::RemoteGraph CreateInstance(std::string const &index_file,
-    std::string const &adj_file,
-    std::string const &grpc_addr,
-    std::string const &ipoib_addr,
-    std::string const &ipoib_port,
+  static famgraph::RemoteGraph CreateInstance(std::string const& index_file,
+    std::string const& adj_file,
+    std::string const& grpc_addr,
+    std::string const& ipoib_addr,
+    std::string const& ipoib_port,
     int rdma_channels);
 
   [[nodiscard]] uint32_t max_v() const noexcept;
@@ -159,7 +161,7 @@ public:
     decltype(ranges_.begin()) current_range_;
     VertexRange current_window_;
     uint32_t current_vertex_;
-    RemoteGraph const &graph_;
+    RemoteGraph const& graph_;
     Buffer edge_buffer_;
     uint32_t *cursor;
     int const channel_;
@@ -168,8 +170,8 @@ public:
     void FillWindow(VertexRange range) noexcept;
 
   public:
-    Iterator(std::vector<VertexRange> &&ranges,
-      RemoteGraph const &graph,
+    Iterator(std::vector<VertexRange>&& ranges,
+      RemoteGraph const& graph,
       int channel);
 
     [[nodiscard]] bool HasNext() noexcept;
@@ -190,10 +192,87 @@ public:
     auto const channel = 0;
     return Iterator(std::move(ranges), *this, channel);
   }
-  [[nodiscard]] Iterator GetIterator(VertexRange const &range,
+  [[nodiscard]] Iterator GetIterator(VertexRange const& range,
     int channel = 0) const noexcept;
-  [[nodiscard]] Iterator GetIterator(VertexSubset const &vertex_set,
+  [[nodiscard]] Iterator GetIterator(VertexSubset const& vertex_set,
     int channel = 0) const noexcept;
+
+  template<typename Function>
+  void EdgeMap(Function f,
+    VertexSubset const& subset,
+    ranges::iota_view<std::uint32_t, std::uint32_t> range,
+    int channel = 0)
+  {
+    if (range.empty()) return;
+    auto is_active = [&](auto v) { return subset[v]; };
+    auto next_start = range.front();
+    auto const last = range.back();
+    auto const [buffer, length] = this->GetChannelBuffer(channel);
+    auto const capacity = length / sizeof(VertexLabel);
+    while (next_start <= last) {
+      // 1) build up vector of intervals
+      auto r = ranges::views::iota(next_start, last + 1);
+      uint32_t taken = 0;
+      uint32_t windows = 0;
+      std::vector<FAM::FamSegment> segments;
+      for (auto const v : r | ranges::views::filter(is_active)) {
+        auto const is_continue = v == next_start + 1;
+        next_start = v;
+        auto const [start_inclusive, end_exclusive] = this->idx_[v];
+        auto edges = end_exclusive - start_inclusive;
+        if (edges == 0) continue;
+        if (taken + edges <= capacity) {
+          auto const length2 = edges * sizeof(VertexLabel);
+          if (segments.empty()
+              || (!is_continue
+                  && segments.size() + 1 < FAM::max_outstanding_wr)) {
+            auto const raddr = this->adjacency_array_.raddr
+                               + start_inclusive * sizeof(VertexLabel);
+            segments.push_back({ raddr, length2 });
+            taken += edges;
+            continue;
+          }
+          if (is_continue) {
+            segments.back().length += length2;
+            taken += edges;
+            continue;
+          }
+          break;
+        }
+      }
+
+      if (segments.empty()) return;
+      if (taken == 0) {}
+
+      // 2) post the RDMA request
+      auto *edges = static_cast<uint32_t volatile *>(buffer);
+      auto const end = taken - 1;
+      edges[0] = famgraph::null_vert;
+      edges[end] = famgraph::null_vert;
+      auto const rkey = this->adjacency_array_.rkey;
+      auto const lkey = this->edge_window_.lkey;
+      this->fam_control_->Read(buffer, segments, lkey, rkey, channel);
+      while (
+        edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {}
+
+      // 3) traverse the vector
+      auto const l = r.front();
+      auto my_r = ranges::views::iota(l, next_start);
+      for (auto const v : my_r | ranges::views::filter(is_active)) {
+        auto const [start_inclusive, end_exclusive] = this->idx_[v];
+        auto const num_edges = end_exclusive - start_inclusive;
+        auto b = static_cast<uint32_t *>(buffer);
+        for (int i = 0; i < num_edges; ++i) f(v, b[i], num_edges);
+        b += num_edges;
+      }
+    }
+  }
+
+  template<typename Function>
+  void EdgeMap(Function F, VertexSubset const& subset)
+  {
+    this->EdgeMap(F, subset, { 0, subset.GetMaxV() + 1 });
+  }
 };
 
 class LocalGraph
@@ -201,12 +280,12 @@ class LocalGraph
   fgidx::DenseIndex idx_;
   std::unique_ptr<uint32_t[]> adjacency_array_;
 
-  LocalGraph(fgidx::DenseIndex &&idx,
-    std::unique_ptr<uint32_t[]> &&adjacency_array);
+  LocalGraph(fgidx::DenseIndex&& idx,
+    std::unique_ptr<uint32_t[]>&& adjacency_array);
 
 public:
-  static LocalGraph CreateInstance(std::string const &index_file,
-    std::string const &adj_file);
+  static LocalGraph CreateInstance(std::string const& index_file,
+    std::string const& adj_file);
 
   [[nodiscard]] uint32_t max_v() const noexcept;
   [[nodiscard]] EdgeIndexType Degree(VertexLabel v) const noexcept;
@@ -216,10 +295,10 @@ public:
     std::vector<VertexRange> const ranges_;
     decltype(ranges_.begin()) current_range_;
     uint32_t current_vertex_;
-    LocalGraph const &graph_;
+    LocalGraph const& graph_;
 
   public:
-    Iterator(std::vector<VertexRange> &&ranges, LocalGraph const &graph);
+    Iterator(std::vector<VertexRange>&& ranges, LocalGraph const& graph);
 
     bool HasNext() noexcept;
     AdjacencyList Next() noexcept;
@@ -232,18 +311,38 @@ public:
     return Iterator(std::move(ranges), *this);
   }
 
-  [[nodiscard]] Iterator GetIterator(VertexRange const &range) const noexcept;
+  [[nodiscard]] Iterator GetIterator(VertexRange const& range) const noexcept;
   [[nodiscard]] Iterator GetIterator(
-    VertexSubset const &vertex_set) const noexcept;
+    VertexSubset const& vertex_set) const noexcept;
+
+  template<typename Function>
+  void EdgeMap(Function f,
+    VertexSubset const& subset,
+    ranges::iota_view<std::uint32_t, std::uint32_t> range,
+    int channel = 0)
+  {
+    auto is_active = [&](auto v) { return subset[v]; };
+    for (auto const v : range | ranges::views::filter(is_active)) {
+      auto const [start_inclusive, end_exclusive] = this->idx_[v];
+      auto const num_edges = end_exclusive - start_inclusive;
+      auto const *edges = &this->adjacency_array_[start_inclusive];
+      for (int i = 0; i < num_edges; ++i) { f(v, edges[i], num_edges); }
+    }
+  }
+  template<typename Function>
+  void EdgeMap(Function F, VertexSubset const& subset)
+  {
+    this->EdgeMap(F, subset, { 0, subset.GetMaxV() + 1 });
+  }
 };
 
 template<typename Vertex, typename AdjancencyGraph> class Graph
 {
-  AdjancencyGraph &adjacency_graph_;
+  AdjancencyGraph& adjacency_graph_;
   std::unique_ptr<Vertex[]> vertex_array_;
 
 public:
-  explicit Graph(AdjancencyGraph &adjacency_graph)
+  explicit Graph(AdjancencyGraph& adjacency_graph)
     : adjacency_graph_(adjacency_graph),
       vertex_array_(new Vertex[adjacency_graph_.max_v() + 1])
   {}
@@ -254,12 +353,12 @@ public:
     return this->adjacency_graph_.Degree(v);
   };
 
-  Vertex &operator[](std::uint32_t v) noexcept
+  Vertex& operator[](std::uint32_t v) noexcept
   {
     return this->vertex_array_[v];
   }
 
-  AdjancencyGraph &getAdjacencyGraph() const noexcept
+  AdjancencyGraph& getAdjacencyGraph() const noexcept
   {
     return adjacency_graph_;
   }
@@ -269,12 +368,11 @@ template<typename Graph,
   typename VertexSet,
   typename VertexProgram,
   typename... Args>
-void EdgeMapSequential(Graph &graph,
-  VertexSet const &vertex_subset,
-  VertexProgram &f,
-  Args... args) noexcept
+void EdgeMapSequential(Graph& graph,
+  VertexSet const& vertex_subset,
+  VertexProgram& f) noexcept
 {
-  auto iterator = graph.GetIterator(vertex_subset, args...);
+  auto iterator = graph.GetIterator(vertex_subset);
   while (iterator.HasNext()) {
     auto const [v, n, edges] = iterator.Next();
     for (unsigned long i = 0; i < n; ++i) f(v, edges[i], n);
@@ -282,26 +380,32 @@ void EdgeMapSequential(Graph &graph,
 }
 
 template<typename Graph, typename VertexProgram>
-void EdgeMap(Graph &graph,
-  VertexSubset const &subset,
-  VertexProgram &f) noexcept
+void EdgeMap(Graph& graph,
+  VertexSubset const& subset,
+  VertexProgram& f) noexcept
 {
   tbb::parallel_for(tbb::blocked_range<VertexLabel>{ 0, graph.max_v() + 1 },
     [&](auto const my_range) {
-      auto const rs =
-        VertexSubset::ConvertToRanges(subset, my_range.begin(), my_range.end());
-      EdgeMapSequential(graph, rs, f, TbbDispatch::USE_TBB);
+      auto const channel = tbb::this_task_arena::current_thread_index();
+      graph.EdgeMap(f,
+        subset,
+        ranges::iota_view{ my_range.begin(), my_range.end() },
+        channel);
+      //      auto const rs =
+      //        VertexSubset::ConvertToRanges(subset, my_range.begin(),
+      //        my_range.end());
+      //      EdgeMapSequential(graph, rs, f, TbbDispatch::USE_TBB);
     });
 }
 
 template<typename Graph, typename VertexFunction>
-void VertexMap(Graph &graph,
-  VertexFunction const &f,
+void VertexMap(Graph& graph,
+  VertexFunction const& f,
   famgraph::VertexRange range) noexcept
 {
   tbb::parallel_for(
     tbb::blocked_range<VertexLabel>{ range.start, range.end_exclusive },
-    [&](auto const &my_range) {
+    [&](auto const& my_range) {
       for (auto v = my_range.begin(); v < my_range.end(); ++v) {
         f(graph[v], v);
       }
@@ -309,7 +413,7 @@ void VertexMap(Graph &graph,
 }
 
 template<typename Graph, typename VertexFunction>
-void VertexMap(Graph &graph, VertexFunction const &f) noexcept
+void VertexMap(Graph& graph, VertexFunction const& f) noexcept
 {
   auto const max_v = graph.max_v();
   VertexMap(graph, f, { 0, max_v + 1 });
