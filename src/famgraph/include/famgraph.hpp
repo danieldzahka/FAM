@@ -242,7 +242,7 @@ public:
       }
 
       if (segments.empty()) return;
-      if (taken == 0) {}
+      if (taken == 0) {}// need return here?
 
       // 2) post the RDMA request
       auto *edges = static_cast<uint32_t volatile *>(buffer);
@@ -315,13 +315,12 @@ public:
   [[nodiscard]] Iterator GetIterator(
     VertexSubset const& vertex_set) const noexcept;
 
-  template<typename Function>
-  void EdgeMap(Function f,
-    VertexSubset const& subset,
+  template<typename Function, typename Filter>
+  void EdgeMap(Function& f,
+    Filter const& is_active,
     ranges::iota_view<std::uint32_t, std::uint32_t> range,
     int channel = 0)
   {
-    auto is_active = [&](auto v) { return subset[v]; };
     for (auto const v : range | ranges::views::filter(is_active)) {
       auto const [start_inclusive, end_exclusive] = this->idx_[v];
       auto const num_edges = end_exclusive - start_inclusive;
@@ -330,9 +329,26 @@ public:
     }
   }
   template<typename Function>
-  void EdgeMap(Function F, VertexSubset const& subset)
+  void EdgeMap(Function& F, VertexSubset const& subset)
   {
-    this->EdgeMap(F, subset, { 0, subset.GetMaxV() + 1 });
+    auto is_active = [&](auto v) { return subset[v]; };
+    this->EdgeMap(F, is_active, { 0, subset.GetMaxV() + 1 });
+  }
+
+  template<typename Function>
+  void EdgeMap(Function& F,
+    VertexSubset const& subset,
+    ranges::iota_view<std::uint32_t, std::uint32_t> range,
+    int channel = 0)
+  {
+    auto is_active = [&](auto v) { return subset[v]; };
+    this->EdgeMap(F, is_active, range, channel);
+  }
+
+  template<typename Function> void EdgeMap(Function& F)
+  {
+    auto is_active = [](auto) { return true; };
+    this->EdgeMap(F, is_active, { 0, this->max_v() + 1 });
   }
 };
 
