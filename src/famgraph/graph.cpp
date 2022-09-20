@@ -3,11 +3,11 @@
 #include <fmt/core.h>//TODO: Delete this dep
 
 famgraph::RemoteGraph famgraph::RemoteGraph::CreateInstance(
-  std::string const &index_file,
-  std::string const &adj_file,
-  std::string const &grpc_addr,
-  std::string const &ipoib_addr,
-  std::string const &ipoib_port,
+  std::string const& index_file,
+  std::string const& adj_file,
+  std::string const& grpc_addr,
+  std::string const& ipoib_addr,
+  std::string const& ipoib_port,
   int rdma_channels)
 {
   auto fam_control = std::make_unique<FAM::FamControl>(
@@ -27,8 +27,8 @@ famgraph::RemoteGraph famgraph::RemoteGraph::CreateInstance(
     std::move(index), std::move(fam_control), adjacency_file, edge_window
   };
 }
-famgraph::RemoteGraph::RemoteGraph(fgidx::DenseIndex &&idx,
-  std::unique_ptr<FAM::FamControl> &&fam_control,
+famgraph::RemoteGraph::RemoteGraph(fgidx::DenseIndex&& idx,
+  std::unique_ptr<FAM::FamControl>&& fam_control,
   FAM::FamControl::RemoteRegion adjacency_array,
   FAM::FamControl::LocalRegion edge_window)
   : idx_{ std::move(idx) }, fam_control_{ std::move(fam_control) },
@@ -37,7 +37,7 @@ famgraph::RemoteGraph::RemoteGraph(fgidx::DenseIndex &&idx,
 famgraph::RemoteGraph::Buffer famgraph::RemoteGraph::GetChannelBuffer(
   int channel) const noexcept
 {
-  auto const &edge_window = this->edge_window_;
+  auto const& edge_window = this->edge_window_;
   auto *p = static_cast<char *>(edge_window.laddr);
   auto const length = (edge_window.length / this->fam_control_->rdma_channels_);
 
@@ -48,14 +48,14 @@ uint32_t famgraph::RemoteGraph::max_v() const noexcept
   return this->idx_.v_max;
 }
 famgraph::RemoteGraph::Iterator famgraph::RemoteGraph::GetIterator(
-  const famgraph::VertexRange &range,
+  famgraph::VertexRange const& range,
   int channel) const noexcept
 {
   return famgraph::RemoteGraph::Iterator(
     std::vector<VertexRange>{ range }, *this, channel);
 }
 famgraph::RemoteGraph::Iterator famgraph::RemoteGraph::GetIterator(
-  const famgraph::VertexSubset &vertex_set,
+  famgraph::VertexSubset const& vertex_set,
   int channel) const noexcept
 {
   return famgraph::RemoteGraph::Iterator(
@@ -67,15 +67,31 @@ famgraph::EdgeIndexType famgraph::RemoteGraph::Degree(
   auto interval = this->idx_[v];
   return interval.end_exclusive - interval.begin;
 }
+void famgraph::RemoteGraph::PostSegmentsAndWait(
+  std::vector<FAM::FamSegment> const& segments,
+  std::uint32_t taken,
+  int channel) noexcept
+{
+  auto const [buffer, unused] = this->GetChannelBuffer(channel);
+  auto *edges = static_cast<uint32_t volatile *>(buffer);
+  auto const end = taken - 1;
+  edges[0] = famgraph::null_vert;
+  edges[end] = famgraph::null_vert;
+  auto const rkey = this->adjacency_array_.rkey;
+  auto const lkey = this->edge_window_.lkey;
+  this->fam_control_->Read(buffer, segments, lkey, rkey, channel);
+  while (edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {
+  }
+}
 
-famgraph::LocalGraph::LocalGraph(fgidx::DenseIndex &&idx,
-  std::unique_ptr<uint32_t[]> &&adjacency_array)
+famgraph::LocalGraph::LocalGraph(fgidx::DenseIndex&& idx,
+  std::unique_ptr<uint32_t[]>&& adjacency_array)
   : idx_(std::move(idx)), adjacency_array_(std::move(adjacency_array))
 {}
 
 famgraph::LocalGraph famgraph::LocalGraph::CreateInstance(
-  const std::string &index_file,
-  const std::string &adj_file)
+  std::string const& index_file,
+  std::string const& adj_file)
 {
   auto [edges, array] = fgidx::CreateAdjacencyArray(adj_file);
   return { fgidx::DenseIndex::CreateInstance(index_file, edges),
@@ -83,7 +99,7 @@ famgraph::LocalGraph famgraph::LocalGraph::CreateInstance(
 }
 
 famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
-  const famgraph::VertexRange &range) const noexcept
+  famgraph::VertexRange const& range) const noexcept
 {
   return { std::vector<VertexRange>{ range }, *this };
 }
@@ -92,7 +108,7 @@ uint32_t famgraph::LocalGraph::max_v() const noexcept
   return this->idx_.v_max;
 }
 famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
-  const famgraph::VertexSubset &vertex_set) const noexcept
+  famgraph::VertexSubset const& vertex_set) const noexcept
 {
   return famgraph::LocalGraph::Iterator(
     VertexSubset::ConvertToRanges(vertex_set), *this);
@@ -129,13 +145,13 @@ famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
   auto const [start_inclusive, end_exclusive] = this->graph_.idx_[v];
   auto const num_edges = end_exclusive - start_inclusive;
 
-  auto edges = const_cast<const uint32_t *>(this->cursor);
+  auto edges = const_cast<uint32_t const *>(this->cursor);
   this->cursor += num_edges;
 
   return { v, num_edges, edges };
 }
-famgraph::RemoteGraph::Iterator::Iterator(std::vector<VertexRange> &&ranges,
-  RemoteGraph const &graph,
+famgraph::RemoteGraph::Iterator::Iterator(std::vector<VertexRange>&& ranges,
+  RemoteGraph const& graph,
   int channel)
   : ranges_(std::move(ranges)),
     current_range_(ranges_.begin()), current_vertex_{ ranges_.begin()
@@ -178,8 +194,8 @@ void famgraph::RemoteGraph::Iterator::FillWindow(
 {
   if (range.start >= range.end_exclusive) return;
   auto *edges = static_cast<uint32_t volatile *>(this->edge_buffer_.p);
-  auto const &start = this->graph_.idx_[range.start].begin;
-  auto const &end_exclusive =
+  auto const& start = this->graph_.idx_[range.start].begin;
+  auto const& end_exclusive =
     this->graph_.idx_[range.end_exclusive - 1].end_exclusive;
   auto const length = end_exclusive - start;
   auto const end = length - 1;
@@ -230,8 +246,8 @@ famgraph::AdjacencyList famgraph::LocalGraph::Iterator::Next() noexcept
   return { v, num_edges, edges };
 }
 
-famgraph::LocalGraph::Iterator::Iterator(std::vector<VertexRange> &&ranges,
-  const famgraph::LocalGraph &graph)
+famgraph::LocalGraph::Iterator::Iterator(std::vector<VertexRange>&& ranges,
+  famgraph::LocalGraph const& graph)
   : ranges_(std::move(ranges)), current_range_(ranges_.begin()),
     current_vertex_(
       ranges_.begin() != ranges_.end() ? current_range_->start : 0),
@@ -246,9 +262,9 @@ famgraph::VertexSubset::VertexSubset(uint32_t max_v)
 uint32_t famgraph::VertexSubset::GetMaxV() const noexcept { return max_v_; }
 
 void famgraph::PrintVertexSubset(
-  const famgraph::VertexSubset &vertex_subset) noexcept
+  famgraph::VertexSubset const& vertex_subset) noexcept
 {
-  const auto max_v = vertex_subset.GetMaxV();
+  auto const max_v = vertex_subset.GetMaxV();
   fmt::print("(");
   for (VertexLabel i = 0; i <= max_v; ++i) {
     if (vertex_subset[i]) fmt::print("{}, ", i);
