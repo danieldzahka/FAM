@@ -136,6 +136,57 @@ class RemoteGraph
     FAM::FamControl::RemoteRegion adjacency_array,
     FAM::FamControl::LocalRegion edge_window);
 
+  void PostSegmentsAndWait(std::vector<FAM::FamSegment> const& segments,
+    std::uint32_t taken,
+    int channel) noexcept;
+
+  struct SegmentDescriptor
+  {
+    VertexLabel v;
+  };
+
+  template<typename Range>
+  std::tuple<std::vector<SegmentDescriptor>,
+    std::vector<FAM::FamSegment>,
+    std::uint32_t>
+    GetSegments(Range r) noexcept
+  {
+    auto const [unused, length] = this->GetChannelBuffer(0);
+    auto const capacity = length / sizeof(VertexLabel);
+    std::vector<SegmentDescriptor> descriptors;
+    std::vector<FAM::FamSegment> segments;
+    std::uint32_t taken = 0;
+    VertexLabel last_taken = 0;
+    for (auto const v : r) {
+      auto const is_continue = (v == last_taken + 1) && segments.size() != 0;
+      auto const [start_inclusive, end_exclusive] = this->idx_[v];
+      auto const edges = end_exclusive - start_inclusive;
+      if (edges == 0) continue;
+      if (taken + edges > capacity) break;
+
+      auto const length2 = edges * sizeof(VertexLabel);
+
+      if (is_continue) {
+        segments.back().length += length2;
+        taken += edges;
+        last_taken = v;
+        descriptors.push_back({ v });
+        continue;
+      }
+
+      if (segments.size() >= FAM::max_outstanding_wr) break;
+
+      auto const raddr =
+        this->adjacency_array_.raddr + start_inclusive * sizeof(VertexLabel);
+      segments.push_back({ raddr, length2 });
+      taken += edges;
+      last_taken = v;
+      descriptors.push_back({ v });
+    }
+
+    return std::tuple(descriptors, segments, taken);
+  }
+
 public:
   static famgraph::RemoteGraph CreateInstance(std::string const& index_file,
     std::string const& adj_file,
@@ -197,71 +248,35 @@ public:
   [[nodiscard]] Iterator GetIterator(VertexSubset const& vertex_set,
     int channel = 0) const noexcept;
 
-  template<typename Function>
+  template<typename Function, typename Filter>
   void EdgeMap(Function f,
-    VertexSubset const& subset,
+    Filter const& is_active,
     ranges::iota_view<std::uint32_t, std::uint32_t> range,
     int channel = 0)
   {
     if (range.empty()) return;
-    auto is_active = [&](auto v) { return subset[v]; };
     auto next_start = range.front();
     auto const last = range.back();
-    auto const [buffer, length] = this->GetChannelBuffer(channel);
-    auto const capacity = length / sizeof(VertexLabel);
     while (next_start <= last) {
       // 1) build up vector of intervals
-      auto r = ranges::views::iota(next_start, last + 1);
-      uint32_t taken = 0;
-      uint32_t windows = 0;
-      std::vector<FAM::FamSegment> segments;
-      for (auto const v : r | ranges::views::filter(is_active)) {
-        auto const is_continue = v == next_start + 1;
-        next_start = v;
-        auto const [start_inclusive, end_exclusive] = this->idx_[v];
-        auto edges = end_exclusive - start_inclusive;
-        if (edges == 0) continue;
-        if (taken + edges <= capacity) {
-          auto const length2 = edges * sizeof(VertexLabel);
-          if (segments.empty()
-              || (!is_continue
-                  && segments.size() + 1 < FAM::max_outstanding_wr)) {
-            auto const raddr = this->adjacency_array_.raddr
-                               + start_inclusive * sizeof(VertexLabel);
-            segments.push_back({ raddr, length2 });
-            taken += edges;
-            continue;
-          }
-          if (is_continue) {
-            segments.back().length += length2;
-            taken += edges;
-            continue;
-          }
-          break;
-        }
-      }
+      auto r = ranges::views::iota(next_start, last + 1)
+               | ranges::views::filter(is_active);
 
+      auto const [descriptors, segments, taken] = this->GetSegments(r);
       if (segments.empty()) return;
-      if (taken == 0) {}// need return here?
+      if (taken == 0) return;// need return here?... no we don't
+
+      next_start = descriptors.back().v + 1;
 
       // 2) post the RDMA request
-      auto *edges = static_cast<uint32_t volatile *>(buffer);
-      auto const end = taken - 1;
-      edges[0] = famgraph::null_vert;
-      edges[end] = famgraph::null_vert;
-      auto const rkey = this->adjacency_array_.rkey;
-      auto const lkey = this->edge_window_.lkey;
-      this->fam_control_->Read(buffer, segments, lkey, rkey, channel);
-      while (
-        edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {}
-
+      this->PostSegmentsAndWait(segments, taken, channel);
       // 3) traverse the vector
-      auto const l = r.front();
-      auto my_r = ranges::views::iota(l, next_start);
-      for (auto const v : my_r | ranges::views::filter(is_active)) {
+      auto const [buffer, length] = this->GetChannelBuffer(channel);
+      auto const capacity = length / sizeof(VertexLabel);
+      auto b = static_cast<uint32_t *>(buffer);
+      for (auto const [v] : descriptors) {
         auto const [start_inclusive, end_exclusive] = this->idx_[v];
         auto const num_edges = end_exclusive - start_inclusive;
-        auto b = static_cast<uint32_t *>(buffer);
         for (int i = 0; i < num_edges; ++i) f(v, b[i], num_edges);
         b += num_edges;
       }
@@ -269,9 +284,26 @@ public:
   }
 
   template<typename Function>
-  void EdgeMap(Function F, VertexSubset const& subset)
+  void EdgeMap(Function& F, VertexSubset const& subset)
   {
-    this->EdgeMap(F, subset, { 0, subset.GetMaxV() + 1 });
+    auto is_active = [&](auto v) { return subset[v]; };
+    this->EdgeMap(F, is_active, { 0, subset.GetMaxV() + 1 });
+  }
+
+  template<typename Function>
+  void EdgeMap(Function& F,
+    VertexSubset const& subset,
+    ranges::iota_view<std::uint32_t, std::uint32_t> range,
+    int channel = 0)
+  {
+    auto is_active = [&](auto v) { return subset[v]; };
+    this->EdgeMap(F, is_active, range, channel);
+  }
+
+  template<typename Function> void EdgeMap(Function& F)
+  {
+    auto is_active = [](auto) { return true; };
+    this->EdgeMap(F, is_active, { 0, this->max_v() + 1 });
   }
 };
 

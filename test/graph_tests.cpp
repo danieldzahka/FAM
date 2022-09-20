@@ -95,9 +95,7 @@ TEST_CASE("RemoteGraph Construction", "[rdma]")
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMapSequential(
-    graph, famgraph::VertexRange{ 0, graph.max_v() + 1 }, build_edge_list);
-
+  graph.EdgeMap(build_edge_list);
   CompareEdgeLists(edge_list, edge_list2);
 }
 
