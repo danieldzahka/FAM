@@ -206,48 +206,6 @@ public:
 
   [[nodiscard]] Buffer GetChannelBuffer(int channel) const noexcept;
 
-  class Iterator
-  {
-    std::vector<VertexRange> const ranges_;
-    decltype(ranges_.begin()) current_range_;
-    VertexRange current_window_;
-    uint32_t current_vertex_;
-    RemoteGraph const& graph_;
-    Buffer edge_buffer_;
-    uint32_t *cursor;
-    int const channel_;
-
-    VertexRange MaximalRange(uint32_t range_start) noexcept;
-    void FillWindow(VertexRange range) noexcept;
-
-  public:
-    Iterator(std::vector<VertexRange>&& ranges,
-      RemoteGraph const& graph,
-      int channel);
-
-    [[nodiscard]] bool HasNext() noexcept;
-    AdjacencyList Next() noexcept;
-  };
-
-  // TODO: Iterator constructor should take const & ranges
-  [[nodiscard]] Iterator GetIterator(std::vector<VertexRange> ranges,
-    TbbDispatch) const noexcept
-  {
-    auto const channel = tbb::this_task_arena::current_thread_index();
-    return Iterator(std::move(ranges), *this, channel);
-  }
-
-  [[nodiscard]] Iterator GetIterator(
-    std::vector<VertexRange> ranges) const noexcept
-  {
-    auto const channel = 0;
-    return Iterator(std::move(ranges), *this, channel);
-  }
-  [[nodiscard]] Iterator GetIterator(VertexRange const& range,
-    int channel = 0) const noexcept;
-  [[nodiscard]] Iterator GetIterator(VertexSubset const& vertex_set,
-    int channel = 0) const noexcept;
-
   template<typename Function, typename Filter>
   void EdgeMap(Function f,
     Filter const& is_active,
@@ -322,31 +280,6 @@ public:
   [[nodiscard]] uint32_t max_v() const noexcept;
   [[nodiscard]] EdgeIndexType Degree(VertexLabel v) const noexcept;
 
-  class Iterator
-  {
-    std::vector<VertexRange> const ranges_;
-    decltype(ranges_.begin()) current_range_;
-    uint32_t current_vertex_;
-    LocalGraph const& graph_;
-
-  public:
-    Iterator(std::vector<VertexRange>&& ranges, LocalGraph const& graph);
-
-    bool HasNext() noexcept;
-    AdjacencyList Next() noexcept;
-  };
-
-  // TODO: Iterator constructor should take const & ranges
-  [[nodiscard]] Iterator GetIterator(std::vector<VertexRange> ranges,
-    TbbDispatch dispath = TbbDispatch::USE_TBB) const noexcept
-  {
-    return Iterator(std::move(ranges), *this);
-  }
-
-  [[nodiscard]] Iterator GetIterator(VertexRange const& range) const noexcept;
-  [[nodiscard]] Iterator GetIterator(
-    VertexSubset const& vertex_set) const noexcept;
-
   template<typename Function, typename Filter>
   void EdgeMap(Function& f,
     Filter const& is_active,
@@ -412,21 +345,6 @@ public:
   }
 };
 
-template<typename Graph,
-  typename VertexSet,
-  typename VertexProgram,
-  typename... Args>
-void EdgeMapSequential(Graph& graph,
-  VertexSet const& vertex_subset,
-  VertexProgram& f) noexcept
-{
-  auto iterator = graph.GetIterator(vertex_subset);
-  while (iterator.HasNext()) {
-    auto const [v, n, edges] = iterator.Next();
-    for (unsigned long i = 0; i < n; ++i) f(v, edges[i], n);
-  }
-}
-
 template<typename Graph, typename VertexProgram>
 void EdgeMap(Graph& graph,
   VertexSubset const& subset,
@@ -439,10 +357,6 @@ void EdgeMap(Graph& graph,
         subset,
         ranges::iota_view{ my_range.begin(), my_range.end() },
         channel);
-      //      auto const rs =
-      //        VertexSubset::ConvertToRanges(subset, my_range.begin(),
-      //        my_range.end());
-      //      EdgeMapSequential(graph, rs, f, TbbDispatch::USE_TBB);
     });
 }
 

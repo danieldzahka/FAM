@@ -47,20 +47,6 @@ uint32_t famgraph::RemoteGraph::max_v() const noexcept
 {
   return this->idx_.v_max;
 }
-famgraph::RemoteGraph::Iterator famgraph::RemoteGraph::GetIterator(
-  famgraph::VertexRange const& range,
-  int channel) const noexcept
-{
-  return famgraph::RemoteGraph::Iterator(
-    std::vector<VertexRange>{ range }, *this, channel);
-}
-famgraph::RemoteGraph::Iterator famgraph::RemoteGraph::GetIterator(
-  famgraph::VertexSubset const& vertex_set,
-  int channel) const noexcept
-{
-  return famgraph::RemoteGraph::Iterator(
-    VertexSubset::ConvertToRanges(vertex_set), *this, channel);
-}
 famgraph::EdgeIndexType famgraph::RemoteGraph::Degree(
   VertexLabel v) const noexcept
 {
@@ -98,20 +84,9 @@ famgraph::LocalGraph famgraph::LocalGraph::CreateInstance(
     std::move(array) };
 }
 
-famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
-  famgraph::VertexRange const& range) const noexcept
-{
-  return { std::vector<VertexRange>{ range }, *this };
-}
 uint32_t famgraph::LocalGraph::max_v() const noexcept
 {
   return this->idx_.v_max;
-}
-famgraph::LocalGraph::Iterator famgraph::LocalGraph::GetIterator(
-  famgraph::VertexSubset const& vertex_set) const noexcept
-{
-  return famgraph::LocalGraph::Iterator(
-    VertexSubset::ConvertToRanges(vertex_set), *this);
 }
 famgraph::EdgeIndexType famgraph::LocalGraph::Degree(
   famgraph::VertexLabel v) const noexcept
@@ -119,140 +94,6 @@ famgraph::EdgeIndexType famgraph::LocalGraph::Degree(
   auto interval = this->idx_[v];
   return interval.end_exclusive - interval.begin;
 }
-
-bool famgraph::RemoteGraph::Iterator::HasNext() noexcept
-{
-  while (this->current_range_ != this->ranges_.cend()) {
-    if (this->current_vertex_ < this->current_range_->end_exclusive)
-      return true;
-    ++this->current_range_;
-    if (this->current_range_ == this->ranges_.cend()) return false;
-    this->current_vertex_ = this->current_range_->start;
-  }
-  return false;
-}
-
-// precondition: window should be filled
-famgraph::AdjacencyList famgraph::RemoteGraph::Iterator::Next() noexcept
-{
-  auto const v = this->current_vertex_++;
-  if (v >= this->current_window_.end_exclusive) {
-    this->current_window_ = this->MaximalRange(v);
-    this->FillWindow(this->current_window_);
-    this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
-  }
-
-  auto const [start_inclusive, end_exclusive] = this->graph_.idx_[v];
-  auto const num_edges = end_exclusive - start_inclusive;
-
-  auto edges = const_cast<uint32_t const *>(this->cursor);
-  this->cursor += num_edges;
-
-  return { v, num_edges, edges };
-}
-famgraph::RemoteGraph::Iterator::Iterator(std::vector<VertexRange>&& ranges,
-  RemoteGraph const& graph,
-  int channel)
-  : ranges_(std::move(ranges)),
-    current_range_(ranges_.begin()), current_vertex_{ ranges_.begin()
-                                                          != ranges_.end()
-                                                        ? current_range_->start
-                                                        : 0 },
-    graph_(graph), edge_buffer_{ graph.GetChannelBuffer(channel) }, channel_{
-      channel
-    }
-{
-  if (this->HasNext()) {
-    this->current_window_ = this->MaximalRange(this->current_range_->start);
-    this->FillWindow(this->current_window_);
-    this->cursor = static_cast<uint32_t *>(this->edge_buffer_.p);
-  }
-}
-famgraph::VertexRange famgraph::RemoteGraph::Iterator::MaximalRange(
-  uint32_t range_start) noexcept
-{
-  uint32_t range_end = range_start;
-  auto const edge_capacity = this->edge_buffer_.length / sizeof(uint32_t);
-
-  uint64_t edges_taken = 0;
-  while (range_end < this->current_range_->end_exclusive) {
-    auto const [start_inclusive, end_exclusive] = this->graph_.idx_[range_end];
-    auto const num_edges = end_exclusive - start_inclusive;
-    edges_taken += num_edges;
-
-    if (edges_taken <= edge_capacity) {
-      range_end++;
-    } else {
-      break;
-    }
-  }
-
-  return { range_start, range_end };
-}
-void famgraph::RemoteGraph::Iterator::FillWindow(
-  famgraph::VertexRange range) noexcept
-{
-  if (range.start >= range.end_exclusive) return;
-  auto *edges = static_cast<uint32_t volatile *>(this->edge_buffer_.p);
-  auto const& start = this->graph_.idx_[range.start].begin;
-  auto const& end_exclusive =
-    this->graph_.idx_[range.end_exclusive - 1].end_exclusive;
-  auto const length = end_exclusive - start;
-  auto const end = length - 1;
-
-  if (length == 0) return;
-
-  // 1) sign edge window
-  edges[0] = famgraph::null_vert;
-  edges[end] = famgraph::null_vert;
-
-  // 2) post rdma
-  auto const raddr =
-    this->graph_.adjacency_array_.raddr + start * sizeof(uint32_t);
-  auto const rkey = this->graph_.adjacency_array_.rkey;
-  auto const lkey = this->graph_.edge_window_.lkey;
-  this->graph_.fam_control_->Read(this->edge_buffer_.p,
-    raddr,
-    length * sizeof(uint32_t),
-    lkey,
-    rkey,
-    this->channel_);
-
-  // 3) wait on data
-  while (edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {
-  }
-}
-
-// precondition: current_vertex should be in current range
-bool famgraph::LocalGraph::Iterator::HasNext() noexcept
-{
-  while (this->current_range_ != this->ranges_.cend()) {
-    if (this->current_vertex_ < this->current_range_->end_exclusive)
-      return true;
-    ++this->current_range_;
-    if (this->current_range_ == this->ranges_.cend()) return false;
-    this->current_vertex_ = this->current_range_->start;
-  }
-  return false;
-}
-
-// precondition: current_vertex_ is valid
-famgraph::AdjacencyList famgraph::LocalGraph::Iterator::Next() noexcept
-{
-  auto const v = this->current_vertex_++;
-  auto const [start_inclusive, end_exclusive] = this->graph_.idx_[v];
-  auto const num_edges = end_exclusive - start_inclusive;
-  auto const *edges = &this->graph_.adjacency_array_[start_inclusive];
-  return { v, num_edges, edges };
-}
-
-famgraph::LocalGraph::Iterator::Iterator(std::vector<VertexRange>&& ranges,
-  famgraph::LocalGraph const& graph)
-  : ranges_(std::move(ranges)), current_range_(ranges_.begin()),
-    current_vertex_(
-      ranges_.begin() != ranges_.end() ? current_range_->start : 0),
-    graph_(graph)
-{}
 
 famgraph::VertexSubset::VertexSubset(uint32_t max_v)
   : bitmap_(new std::uint64_t[Offset(max_v) + 1]), max_v_(max_v)
