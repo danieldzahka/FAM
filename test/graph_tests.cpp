@@ -295,7 +295,7 @@ TEST_CASE("Local Filter Edgemap with Ranges", "[local]")
   CompareEdgeLists(edge_list, edge_list2);
 }
 
-TEST_CASE("Remote Filter Edgemap")
+TEST_CASE("Remote Filter Edgemap", "[rdma]")
 {
   int const rdma_channels = 1;
   auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph>(
@@ -317,12 +317,11 @@ TEST_CASE("Remote Filter Edgemap")
     edge_list2.emplace_back(std::make_pair(v, w));
   };
 
-  famgraph::EdgeMapSequential(graph, vertex_subset, build_edge_list);
-
+  graph.EdgeMap(build_edge_list, vertex_subset);
   CompareEdgeLists(edge_list, edge_list2);
 }
 
-TEST_CASE("Remote Filter Edgemap with Ranges")
+TEST_CASE("Remote Filter Edgemap with Ranges", "[rdma]")
 {
   int const rdma_channels = 1;
   auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph>(
@@ -347,13 +346,7 @@ TEST_CASE("Remote Filter Edgemap with Ranges")
   auto const end_exclusive = graph.max_v() + 1;
   auto const mid = end_exclusive / 2;
 
-  famgraph::EdgeMapSequential(graph,
-    famgraph::VertexSubset::ConvertToRanges(vertex_subset, 0, mid),
-    build_edge_list);
-
-  famgraph::EdgeMapSequential(graph,
-    famgraph::VertexSubset::ConvertToRanges(vertex_subset, mid, end_exclusive),
-    build_edge_list);
-
+  graph.EdgeMap(build_edge_list, vertex_subset, { 0, mid });
+  graph.EdgeMap(build_edge_list, vertex_subset, { mid, end_exclusive });
   CompareEdgeLists(edge_list, edge_list2);
 }
