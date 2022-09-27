@@ -39,9 +39,11 @@ famgraph::RemoteGraph::Buffer famgraph::RemoteGraph::GetChannelBuffer(
 {
   auto const& edge_window = this->edge_window_;
   auto *p = static_cast<char *>(edge_window.laddr);
-  auto const length = (edge_window.length / this->fam_control_->rdma_channels_);
+  auto const length =
+    (edge_window.length
+      / static_cast<unsigned long>(this->fam_control_->rdma_channels_));
 
-  return { p + length * channel, length };
+  return { p + length * static_cast<unsigned long>(channel), length };
 }
 uint32_t famgraph::RemoteGraph::max_v() const noexcept
 {
@@ -65,7 +67,8 @@ void famgraph::RemoteGraph::PostSegmentsAndWait(
   edges[end] = famgraph::null_vert;
   auto const rkey = this->adjacency_array_.rkey;
   auto const lkey = this->edge_window_.lkey;
-  this->fam_control_->Read(buffer, segments, lkey, rkey, channel);
+  this->fam_control_->Read(
+    buffer, segments, lkey, rkey, static_cast<unsigned long>(channel));
   while (edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {
   }
 }

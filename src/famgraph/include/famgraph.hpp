@@ -151,7 +151,7 @@ class RemoteGraph
     std::uint32_t>
     GetSegments(Range r) noexcept
   {
-    auto const [unused, length] = this->GetChannelBuffer(0);
+    [[maybe_unused]] auto const [unused, length] = this->GetChannelBuffer(0);
     auto const capacity = length / sizeof(VertexLabel);
     std::vector<SegmentDescriptor> descriptors;
     std::vector<FAM::FamSegment> segments;
@@ -160,11 +160,11 @@ class RemoteGraph
     for (auto const v : r) {
       auto const is_continue = (v == last_taken + 1) && segments.size() != 0;
       auto const [start_inclusive, end_exclusive] = this->idx_[v];
-      auto const edges = end_exclusive - start_inclusive;
+      auto const edges = static_cast<uint32_t>(end_exclusive - start_inclusive);
       if (edges == 0) continue;
       if (taken + edges > capacity) break;
 
-      auto const length2 = edges * sizeof(VertexLabel);
+      auto const length2 = edges * static_cast<uint32_t>(sizeof(VertexLabel));
 
       if (is_continue) {
         segments.back().length += length2;
@@ -229,13 +229,13 @@ public:
       // 2) post the RDMA request
       this->PostSegmentsAndWait(segments, taken, channel);
       // 3) traverse the vector
-      auto const [buffer, length] = this->GetChannelBuffer(channel);
-      auto const capacity = length / sizeof(VertexLabel);
+      [[maybe_unused]] auto const [buffer, length] =
+        this->GetChannelBuffer(channel);
       auto b = static_cast<uint32_t *>(buffer);
       for (auto const [v] : descriptors) {
         auto const [start_inclusive, end_exclusive] = this->idx_[v];
         auto const num_edges = end_exclusive - start_inclusive;
-        for (int i = 0; i < num_edges; ++i) f(v, b[i], num_edges);
+        for (unsigned int i = 0; i < num_edges; ++i) f(v, b[i], num_edges);
         b += num_edges;
       }
     }
@@ -283,14 +283,15 @@ public:
   template<typename Function, typename Filter>
   void EdgeMap(Function& f,
     Filter const& is_active,
-    ranges::iota_view<std::uint32_t, std::uint32_t> range,
-    int channel = 0)
+    ranges::iota_view<std::uint32_t, std::uint32_t> range)
   {
     for (auto const v : range | ranges::views::filter(is_active)) {
       auto const [start_inclusive, end_exclusive] = this->idx_[v];
       auto const num_edges = end_exclusive - start_inclusive;
       auto const *edges = &this->adjacency_array_[start_inclusive];
-      for (int i = 0; i < num_edges; ++i) { f(v, edges[i], num_edges); }
+      for (unsigned int i = 0; i < num_edges; ++i) {
+        f(v, edges[i], num_edges);
+      }
     }
   }
   template<typename Function>
@@ -304,10 +305,10 @@ public:
   void EdgeMap(Function& F,
     VertexSubset const& subset,
     ranges::iota_view<std::uint32_t, std::uint32_t> range,
-    int channel = 0)
+    int /*channel*/ = 0)
   {
     auto is_active = [&](auto v) { return subset[v]; };
-    this->EdgeMap(F, is_active, range, channel);
+    this->EdgeMap(F, is_active, range);
   }
 
   template<typename Function> void EdgeMap(Function& F)
