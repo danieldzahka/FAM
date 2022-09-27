@@ -26,8 +26,8 @@ auto get_event(rdma_event_channel *chan)
 }
 
 void resolve_addr(rdma_cm_id *id,
-  std::string const &host,
-  std::string const &port)
+  std::string const& host,
+  std::string const& port)
 {
   struct addrinfo *addr;
   getaddrinfo(host.c_str(), port.c_str(), NULL, &addr);
@@ -51,13 +51,13 @@ auto create_qp_attr() noexcept
   return qp_attr;
 }
 
-void connect(rdma_cm_id *id, rdma_conn_param &params)
+void connect(rdma_cm_id *id, rdma_conn_param& params)
 {
   if (rdma_connect(id, &params))
     throw std::runtime_error("rdma_connect() failed!");
 }
 
-void create_qp(rdma_cm_id *id, ibv_qp_init_attr &qp_attr)
+void create_qp(rdma_cm_id *id, ibv_qp_init_attr& qp_attr)
 {
   if (rdma_create_qp(id, nullptr, &qp_attr))
     throw std::runtime_error("rdma_create_qp() failed!");
@@ -115,8 +115,8 @@ struct FAM::IbWorkRequest
   struct ibv_sge sge;
 };
 
-FAM::FamControl::RdmaServiceImpl::RdmaServiceImpl(std::string const &t_host,
-  std::string const &t_port,
+FAM::FamControl::RdmaServiceImpl::RdmaServiceImpl(std::string const& t_host,
+  std::string const& t_port,
   int const channels)
   : ec{ FAM::rdma::CreateEventChannel() }, host{ t_host }, port{ t_port }
 {
@@ -137,7 +137,7 @@ FAM::FamControl::RdmaServiceImpl::~RdmaServiceImpl()
 }
 
 namespace {
-void prep_wr(FAM::IbWorkRequest &t_wr,
+void prep_wr(FAM::IbWorkRequest& t_wr,
   uint64_t laddr,
   uint64_t raddr,
   uint32_t length,
@@ -147,8 +147,8 @@ void prep_wr(FAM::IbWorkRequest &t_wr,
   ibv_send_flags flags,
   ibv_send_wr *next) noexcept
 {
-  ibv_send_wr &wr = t_wr.wr;
-  ibv_sge &sge = t_wr.sge;
+  ibv_send_wr& wr = t_wr.wr;
+  ibv_sge& sge = t_wr.sge;
   memset(&wr, 0, sizeof(wr));// maybe optimize away
 
   wr.opcode = op;
@@ -177,7 +177,7 @@ void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
   unsigned long channel) noexcept
 {
   auto id = this->ids[channel].get();
-  auto &wr = this->wrs[channel][0];
+  auto& wr = this->wrs[channel][0];
   prep_wr(wr,
     laddr,
     raddr,
@@ -194,7 +194,7 @@ void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
 }
 
 void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
-  std::vector<FAM::FamSegment> const &segs,
+  std::vector<FAM::FamSegment> const& segs,
   uint32_t lkey,
   uint32_t rkey,
   unsigned long channel) noexcept
@@ -204,7 +204,7 @@ void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
     auto next = i < segs.size() - 1 ? &this->wrs[channel][i + 1].wr : nullptr;
     auto const flags = static_cast<const ibv_send_flags>(
       i == segs.size() - 1 ? IBV_SEND_SIGNALED : 0);
-    auto &WR = this->wrs[channel][i];
+    auto& WR = this->wrs[channel][i];
     auto const [raddr, length] = segs[i];
     prep_wr(
       WR, laddr, raddr, length, lkey, rkey, IBV_WR_RDMA_READ, flags, next);
@@ -212,7 +212,7 @@ void FAM::FamControl::RdmaServiceImpl::Read(uint64_t laddr,
   }
 
   struct ibv_send_wr *bad_wr = nullptr;
-  auto &wr = this->wrs[channel][0].wr;
+  auto& wr = this->wrs[channel][0].wr;
 
   auto ret = ibv_post_send(id->qp, &wr, &bad_wr);
   if (ret) spdlog::error("ibv_post_send() failed (Read)");
@@ -226,7 +226,7 @@ void FAM::FamControl::RdmaServiceImpl::Write(uint64_t laddr,
   unsigned long channel) noexcept
 {
   auto id = this->ids[channel].get();
-  auto &wr = this->wrs[channel][0];
+  auto& wr = this->wrs[channel][0];
   prep_wr(wr,
     laddr,
     raddr,
@@ -250,17 +250,9 @@ FAM::rdma::RdmaMemoryBuffer::RdmaMemoryBuffer(rdma_cm_id *id,
 {
   spdlog::debug("RdmaMemoryBuffer()");
   auto ptr = p.get();
-  this->mr = [=]() {
-    return ibv_reg_mr(id->pd,
-      ptr,
-      t_size,
-      IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE
-        | IBV_ACCESS_REMOTE_READ);
-    // if (write_allowed)
-    //   return rdma_reg_write(id, ptr, t_size);
-    // else
-    //   return rdma_reg_read(id, ptr, t_size);
-  }();
+  auto constexpr flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ;
+  auto const write = write_allowed ? IBV_ACCESS_REMOTE_WRITE : 0;
+  this->mr = ibv_reg_mr(id->pd, ptr, t_size, flags | write);
 
   if (!this->mr) throw std::runtime_error("rdma_reg() failed!");
 }
@@ -272,8 +264,8 @@ FAM::rdma::RdmaMemoryBuffer::~RdmaMemoryBuffer()
 }
 
 void FAM::rdma::PollCompletionQueue(
-  std::vector<std::unique_ptr<rdma_cm_id, FAM::rdma::RdmaIdDeleter>> &cm_ids,
-  std::atomic<bool> &keep_spinning)
+  std::vector<std::unique_ptr<rdma_cm_id, FAM::rdma::RdmaIdDeleter>>& cm_ids,
+  std::atomic<bool>& keep_spinning)
 {
   constexpr auto k = 10;
   struct ibv_cq *cq;
@@ -282,7 +274,7 @@ void FAM::rdma::PollCompletionQueue(
 
   while (keep_spinning) {
     for (unsigned long iter = 0; iter < batch; ++iter) {
-      for (auto &id : cm_ids) {
+      for (auto& id : cm_ids) {
         cq = id->send_cq;
         if (int n = ibv_poll_cq(cq, k, wc)) {
           for (int i = 0; i < n; ++i) {
