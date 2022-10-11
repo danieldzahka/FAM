@@ -137,7 +137,7 @@ RUN apt-get update && \
 #install tools to build rdma core
 RUN apt-get update && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-build-essential cmake gcc libudev-dev libnl-3-dev libnl-route-3-dev ninja-build pkg-config valgrind python3-dev cython3 python3-docutils pandoc
+build-essential libudev-dev libnl-3-dev libnl-route-3-dev ninja-build pkg-config valgrind python3-dev cython3 python3-docutils pandoc
 
 RUN cd /home/user && wget https://github.com/linux-rdma/rdma-core/releases/download/v42.0/rdma-core-42.0.tar.gz && tar xf rdma-core-42.0.tar.gz && cd rdma-core-42.0 && bash build.sh
 
