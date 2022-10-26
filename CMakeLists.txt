@@ -54,6 +54,8 @@ include(${_project_options_SOURCE_DIR}/src/DynamicProjectOptions.cmake)
 dynamic_project_options()
 target_compile_features(project_options INTERFACE cxx_std_${CMAKE_CXX_STANDARD})
 
+option(ENABLE_DISTRIBUTED "Enable Distributed Features" OFF)
+
 add_subdirectory(src)
 
 option(ENABLE_TESTING "Enable the tests" ON)

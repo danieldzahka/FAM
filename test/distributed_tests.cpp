@@ -1,12 +1,12 @@
-#include <catch2/catch.hpp>
 #include <fmt/core.h>
-
+#include <fmt/color.h>
 #include <map>
 #include <string_view>
 
 #include <constants.hpp>
 #include <famgraph.hpp>
 #include <famgraph_algorithms.hpp>
+#include <mpi_substrate.hpp>
 
 namespace {
 using namespace std::literals::string_view_literals;
@@ -17,7 +17,7 @@ auto constexpr memserver_grpc_addr = MEMADDR;
 auto constexpr ipoib_addr = MEMSERVER_IPOIB;
 auto constexpr ipoib_port = MEMSERVER_RDMA_PORT;
 
-static constexpr int threads = 10;
+static constexpr int threads = 5;
 
 struct BfsKey
 {
@@ -149,6 +149,16 @@ const std::map<std::string_view, PageRankResult> pagerank_output{
       } } }
 };
 
+void REQUIRE(bool ok)
+{
+  if (ok) {
+    fmt::print(fmt::emphasis::bold | fg(fmt::color::green), "PASS\n");
+  } else {
+    fmt::print(fmt::emphasis::bold | fg(fmt::color::red), "TEST FAILED\n");
+    throw std::runtime_error(fmt::format("Test Failed\n"));
+  }
+}
+
 template<typename AdjacencyGraph = famgraph::LocalGraph, typename... Args>
 AdjacencyGraph CreateGraph(std::string_view graph_base, Args... args)
 {
@@ -162,28 +172,38 @@ AdjacencyGraph CreateGraph(std::string_view graph_base, Args... args)
 template<typename Graph>
 void RunBFS(Graph& graph,
   std::string_view graph_base,
-  std::uint32_t start_vertex)
+  std::uint32_t start_vertex,
+  bool print_result = false)
 {
-  auto breadth_first_search = famgraph::BreadthFirstSearch(graph);
+  auto breadth_first_search =
+    famgraph::BreadthFirstSearch<Graph, MpiSubstrate>(graph);
   auto result = breadth_first_search(start_vertex);
+  if (!print_result) return;
   auto max_distance = bfs_reference_output.at({ graph_base, start_vertex });
   REQUIRE(result.max_distance == max_distance);
 }
 
 template<typename Graph>
-void RunKcore(Graph& graph, std::string_view graph_base, std::uint32_t kcore_k)
+void RunKcore(Graph& graph,
+  std::string_view graph_base,
+  std::uint32_t kcore_k,
+  bool print_result = false)
 {
   auto kcore_decomposition = famgraph::KcoreDecomposition(graph);
   auto result = kcore_decomposition(kcore_k);
+  if (!print_result) return;
   auto kth_core_size = kcore_reference_output.at({ graph_base, kcore_k });
   REQUIRE(result.kth_core_membership == kth_core_size);
 }
 
 template<typename Graph>
-void RunConnectedComponents(Graph& graph, std::string_view graph_base)
+void RunConnectedComponents(Graph& graph,
+  std::string_view graph_base,
+  bool print_result = false)
 {
   auto connected_components = famgraph::ConnectedComponents(graph);
   auto result = connected_components();
+  if (!print_result) return;
   auto reference = connected_components_output.at(graph_base);
   REQUIRE(result.components == reference.total_components);
   REQUIRE(result.non_trivial_components == reference.non_trivial_components);
@@ -191,10 +211,13 @@ void RunConnectedComponents(Graph& graph, std::string_view graph_base)
 }
 
 template<typename Graph>
-void RunPageRank(Graph& graph, std::string_view graph_base)
+void RunPageRank(Graph& graph,
+  std::string_view graph_base,
+  bool print_result = false)
 {
   auto page_rank = famgraph::PageRank(graph);
   auto result = page_rank();
+  if (!print_result) return;
   auto reference = pagerank_output.at(graph_base);
 
   REQUIRE(reference.top20.size() == result.topN.size());
@@ -211,164 +234,35 @@ void RunPageRank(Graph& graph, std::string_view graph_base)
 }
 }// namespace
 
-TEST_CASE("LocalGraph Breadth First Search", "[local]")
+void DoBFS(bool enable_print, bool enable_long_tests)
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
-  auto [graph_base, start_vertex] = GENERATE(
-    BfsKey{ small, 0 }, BfsKey{ gnutella, 0 }, BfsKey{ last_vert_nonempty, 0 });
-  auto graph = CreateGraph(graph_base);
-  RunBFS(graph, graph_base, start_vertex);
+  std::vector<BfsKey> inputs{ BfsKey{ small, 0 }, BfsKey{ gnutella, 0 } };
+  if (enable_long_tests) inputs.push_back(BfsKey{ twitter7_symmetric, 1 });
+  for (auto [graph_base, start_vertex] : inputs) {
+    auto graph = CreateGraph(graph_base);
+    RunBFS(graph, graph_base, start_vertex, enable_print);
+  }
 }
 
-TEST_CASE("RemoteGraph Breadth First Search", "[rdma]")
-{
-  auto [graph_base, start_vertex] = GENERATE(
-    BfsKey{ small, 0 }, BfsKey{ gnutella, 0 }, BfsKey{ last_vert_nonempty, 0 });
-  int const rdma_channels = 5;
-  tbb::global_control c(
-    tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
-  RunBFS(graph, graph_base, start_vertex);
-}
-
-TEST_CASE("LocalGraph Kcore Decomposition", "[local]")
+void DoCC(bool enable_print, bool enable_long_tests)
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
-  auto [graph_base, k] = GENERATE(KcoreKey{ small_symmetric, 2 },
-    KcoreKey{ gnutella_symmetric, 5 },
-    KcoreKey{ gnutella_symmetric, 6 },
-    KcoreKey{ gnutella_symmetric, 7 });
-
-  auto graph = CreateGraph(graph_base);
-  RunKcore(graph, graph_base, k);
+  std::vector<std::string_view> inputs{ small_symmetric, gnutella_symmetric };
+  if (enable_long_tests) inputs.push_back(twitter7_symmetric);
+  for (auto graph_base : inputs) {
+    auto graph = CreateGraph(graph_base);
+    RunConnectedComponents(graph, graph_base, enable_print);
+  }
 }
 
-TEST_CASE("RemoteGraph Kcore Decomposition", "[rdma]")
+int main(int argc, char *argv[])
 {
-  auto [graph_base, k] = GENERATE(KcoreKey{ small_symmetric, 2 },
-    KcoreKey{ gnutella_symmetric, 5 },
-    KcoreKey{ gnutella_symmetric, 6 },
-    KcoreKey{ gnutella_symmetric, 7 });
-
-  int const rdma_channels = 5;
-  tbb::global_control c(
-    tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
-  RunKcore(graph, graph_base, k);
-}
-
-TEST_CASE("LocalGraph ConnectedComponents", "[local]")
-{
-  tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
-  auto graph_base = GENERATE(small_symmetric, gnutella_symmetric);
-  auto graph = CreateGraph(graph_base);
-  RunConnectedComponents(graph, graph_base);
-}
-
-TEST_CASE("RemoteGraph ConnectedComponents", "[rdma]")
-{
-  auto graph_base = GENERATE(small_symmetric, gnutella_symmetric);
-  int const rdma_channels = 5;
-  tbb::global_control c(
-    tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
-  RunConnectedComponents(graph, graph_base);
-}
-
-TEST_CASE("LocalGraph PageRank", "[local]")
-{
-  tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
-  auto graph_base = GENERATE(gnutella);
-  auto graph = CreateGraph(graph_base);
-  RunPageRank(graph, graph_base);
-}
-
-TEST_CASE("RemoteGraph PageRank", "[rdma]")
-{
-  auto graph_base = GENERATE(gnutella);
-  int const rdma_channels = 5;
-  tbb::global_control c(
-    tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
-  RunPageRank(graph, graph_base);
-}
-
-TEST_CASE("Large Graph LocalGraph Breadth First Search", "[local][long]")
-{
-  tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
-  auto [graph_base, start_vertex] = GENERATE(BfsKey{ twitter7_symmetric, 1 });
-  auto graph = CreateGraph(graph_base);
-  RunBFS(graph, graph_base, start_vertex);
-}
-
-TEST_CASE("Large Graph RemoteGraph Breadth First Search", "[rdma][long]")
-{
-  auto [graph_base, start_vertex] = GENERATE(BfsKey{ twitter7_symmetric, 1 });
-  int const rdma_channels = 10;
-  tbb::global_control c(
-    tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
-  RunBFS(graph, graph_base, start_vertex);
-}
-
-TEST_CASE("Large Graph LocalGraph Kcore Decomposition", "[local][long]")
-{
-  tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
-  auto [graph_base, k] = GENERATE(KcoreKey{ twitter7_symmetric, 100 });
-  auto graph = CreateGraph(graph_base);
-  RunKcore(graph, graph_base, k);
-}
-
-TEST_CASE("Large Graph RemoteGraph Kcore Decomposition", "[rdma][long]")
-{
-  auto [graph_base, k] = GENERATE(KcoreKey{ twitter7_symmetric, 100 });
-  int const rdma_channels = 10;
-  tbb::global_control c(
-    tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
-  RunKcore(graph, graph_base, k);
-}
-
-TEST_CASE("Large Graph LocalGraph ConnectedComponents", "[local][long]")
-{
-  tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
-  auto graph_base = GENERATE(twitter7_symmetric);
-  auto graph = CreateGraph(graph_base);
-  RunConnectedComponents(graph, graph_base);
-}
-
-TEST_CASE("Large Graph RemoteGraph ConnectedComponents", "[rdma][long]")
-{
-  auto graph_base = GENERATE(twitter7_symmetric);
-  int const rdma_channels = 10;
-  tbb::global_control c(
-    tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
-  RunConnectedComponents(graph, graph_base);
-}
-
-TEST_CASE("Large Graph LocalGraph PageRank", "[local][long]")
-{
-  tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
-  auto graph_base = GENERATE(twitter7);
-  auto graph = CreateGraph(graph_base);
-  RunPageRank(graph, graph_base);
-}
-
-TEST_CASE("Large Graph RemoteGraph PageRank", "[rdma][long]")
-{
-  auto graph_base = GENERATE(twitter7);
-  int const rdma_channels = 10;
-  tbb::global_control c(
-    tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
-  RunPageRank(graph, graph_base);
+  MPI_Init(&argc, &argv);
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  DoBFS(rank == 0, false);
+  DoCC(rank == 0, false);
+  MPI_Finalize();
+  return 0;
 }

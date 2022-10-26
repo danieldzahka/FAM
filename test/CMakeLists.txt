@@ -94,3 +94,25 @@ catch_discover_tests(
         "unittests."
         OUTPUT_SUFFIX
         .xml)
+
+if (ENABLE_DISTRIBUTED)
+    find_package(MPI REQUIRED)
+    add_executable(distributed_tests distributed_tests.cpp)
+    target_link_libraries(distributed_tests
+            PRIVATE
+            project_warnings
+            project_options
+            famgraph_algs
+            famgraph_distributed
+            fmt::fmt
+            MPI::MPI_CXX
+            )
+    target_include_directories(distributed_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    set(RANKS 2)
+    add_custom_target(run_distributed_tests
+            COMMAND ${MPIEXEC_EXECUTABLE} -mca btl_openib_allow_ib true ${MPIEXEC_NUMPROC_FLAG} ${RANKS}
+            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:distributed_tests> ${MPIEXEC_POSTFLAGS})
+    add_custom_target(run_distributed_tests_serial
+            COMMAND ${MPIEXEC_EXECUTABLE} -mca btl_openib_allow_ib true ${MPIEXEC_NUMPROC_FLAG} 1
+            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:distributed_tests> ${MPIEXEC_POSTFLAGS})
+endif ()

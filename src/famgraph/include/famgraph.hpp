@@ -68,6 +68,14 @@ public:
     return this->num_active_.combine(std::plus<uint32_t>{}) == 0;
   }
 
+  [[nodiscard]] bool IsEmpty2() noexcept
+  {
+    uint64_t acc = 0;
+    for (uint64_t k = 0; k < this->Count(); ++k) { acc |= this->bitmap_[k]; }
+    return !acc;
+  }
+
+
   // TODO: Make parallel clear
   void Clear() noexcept
   {
@@ -119,7 +127,9 @@ public:
     return ret;
   }
 
-  uint32_t GetMaxV() const noexcept;
+  [[nodiscard]] uint32_t GetMaxV() const noexcept;
+  std::uint64_t *GetTable() noexcept;
+  std::uint32_t Count() noexcept;
 };
 
 void PrintVertexSubset(VertexSubset const& vertex_subset) noexcept;
@@ -344,21 +354,38 @@ public:
   {
     return adjacency_graph_;
   }
+
+  Vertex *VertexArray() const noexcept { return this->vertex_array_.get(); }
+
+  [[nodiscard]] VertexLabel NumVertices() const noexcept
+  {
+    return this->adjacency_graph_.max_v() + 1;
+  }
 };
+
+template<typename Graph, typename VertexProgram>
+void EdgeMap(Graph& graph,
+  VertexSubset const& subset,
+  VertexProgram& f,
+  tbb::blocked_range<VertexLabel> const& range) noexcept
+{
+  tbb::parallel_for(range, [&](auto const my_range) {
+    auto const channel = tbb::this_task_arena::current_thread_index();
+    graph.EdgeMap(f,
+      subset,
+      ranges::iota_view{ my_range.begin(), my_range.end() },
+      channel);
+  });
+}
+
 
 template<typename Graph, typename VertexProgram>
 void EdgeMap(Graph& graph,
   VertexSubset const& subset,
   VertexProgram& f) noexcept
 {
-  tbb::parallel_for(tbb::blocked_range<VertexLabel>{ 0, graph.max_v() + 1 },
-    [&](auto const my_range) {
-      auto const channel = tbb::this_task_arena::current_thread_index();
-      graph.EdgeMap(f,
-        subset,
-        ranges::iota_view{ my_range.begin(), my_range.end() },
-        channel);
-    });
+  EdgeMap(
+    graph, subset, f, tbb::blocked_range<VertexLabel>{ 0, graph.max_v() + 1 });
 }
 
 template<typename Graph, typename VertexFunction>

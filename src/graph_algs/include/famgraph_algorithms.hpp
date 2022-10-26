@@ -1,16 +1,14 @@
-//
-// Created by daniel on 2/19/22.
-//
-
 #ifndef FAM_FAMGRAPH_ALGORITHMS_HPP
 #define FAM_FAMGRAPH_ALGORITHMS_HPP
 
 #include <limits>
 #include <atomic>
 #include <famgraph.hpp>
+#include <NopSubstrate.hpp>
 
 namespace famgraph {
-template<typename AdjacencyGraph> class BreadthFirstSearch
+template<typename AdjacencyGraph, typename Substrate = NopSubstrate>
+class BreadthFirstSearch
 {
   constexpr static auto NULL_VERT = std::numeric_limits<VertexLabel>::max();
 
@@ -22,7 +20,7 @@ template<typename AdjacencyGraph> class BreadthFirstSearch
   famgraph::Graph<Vertex, AdjacencyGraph> graph_;
 
 public:
-  BreadthFirstSearch(AdjacencyGraph &graph) : graph_(graph) {}
+  BreadthFirstSearch(AdjacencyGraph& graph) : graph_(graph) {}
 
   struct Result
   {
@@ -38,8 +36,8 @@ public:
     auto *frontier = &frontierA;
     auto *next_frontier = &frontierB;
 
-    auto &graph = this->graph_;
-    auto &adj_graph = graph.getAdjacencyGraph();
+    auto& graph = this->graph_;
+    auto& adj_graph = graph.getAdjacencyGraph();
 
     auto push = [&](uint32_t const v,
                   uint32_t const w,
@@ -52,13 +50,15 @@ public:
 
     std::uint32_t rounds = 0;
     frontier->Set(start_vertex);
-    while (!frontier->IsEmpty()) {
-      EdgeMap(adj_graph, *frontier, push);
+    graph[start_vertex].parent = start_vertex;
+    while (!Substrate::IsEmpty(*frontier)) {
+      EdgeMap(adj_graph, *frontier, push, Substrate::AuthoritativeRange(graph));
+      Substrate::SyncVertexTable(graph);
       frontier->Clear();
       std::swap(frontier, next_frontier);
+      Substrate::SyncFrontier(*frontier);
       ++rounds;
     }
-
     return Result{ rounds > 0 ? rounds - 1 : 0 };
   }
 };
@@ -83,7 +83,7 @@ template<typename AdjacencyGraph> class KcoreDecomposition
   }
 
 public:
-  KcoreDecomposition(AdjacencyGraph &graph) : graph_(graph) {}
+  KcoreDecomposition(AdjacencyGraph& graph) : graph_(graph) {}
 
   struct Result
   {
@@ -99,10 +99,10 @@ public:
     auto *frontier = &frontierA;
     auto *next_frontier = &frontierB;
 
-    auto &graph = this->graph_;
-    auto &adj_graph = graph.getAdjacencyGraph();
+    auto& graph = this->graph_;
+    auto& adj_graph = graph.getAdjacencyGraph();
 
-    famgraph::VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
+    famgraph::VertexMap(graph, [&](Vertex& vertex, VertexLabel v) noexcept {
       auto const d = static_cast<std::uint32_t>(adj_graph.Degree(v));
       vertex.degree.store(d, std::memory_order_relaxed);
       if (d < k) frontier->Set(v);
@@ -125,7 +125,8 @@ public:
   }
 };
 
-template<typename AdjacencyGraph> class ConnectedComponents
+template<typename AdjacencyGraph, typename Substrate = NopSubstrate>
+class ConnectedComponents
 {
   struct Vertex
   {
@@ -153,7 +154,7 @@ template<typename AdjacencyGraph> class ConnectedComponents
   famgraph::Graph<Vertex, AdjacencyGraph> graph_;
 
 public:
-  ConnectedComponents(AdjacencyGraph &graph) : graph_(graph) {}
+  ConnectedComponents(AdjacencyGraph& graph) : graph_(graph) {}
 
   struct Result
   {
@@ -171,10 +172,10 @@ public:
     auto *frontier = &frontierA;
     auto *next_frontier = &frontierB;
 
-    auto &graph = this->graph_;
-    auto &adj_graph = graph.getAdjacencyGraph();
+    auto& graph = this->graph_;
+    auto& adj_graph = graph.getAdjacencyGraph();
 
-    famgraph::VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
+    famgraph::VertexMap(graph, [&](Vertex& vertex, VertexLabel v) noexcept {
       vertex.label.store(v, std::memory_order_relaxed);
     });
 
@@ -188,10 +189,12 @@ public:
     };
 
     frontier->SetAll();
-    while (!frontier->IsEmpty()) {
+    while (!Substrate::IsEmpty(*frontier)) {
       EdgeMap(adj_graph, *frontier, push);
+      Substrate::SyncVertexTable(graph);
       frontier->Clear();
       std::swap(frontier, next_frontier);
+      Substrate::SyncFrontier(*frontier);
     }
 
     return this->Components();
@@ -271,7 +274,7 @@ template<typename AdjacencyGraph> class PageRank
   famgraph::Graph<Vertex, AdjacencyGraph> graph_;
 
 public:
-  PageRank(AdjacencyGraph &graph) : graph_(graph) {}
+  PageRank(AdjacencyGraph& graph) : graph_(graph) {}
 
   struct Result
   {
@@ -288,10 +291,10 @@ public:
     auto *frontier = &frontierA;
     auto *next_frontier = &frontierB;
 
-    auto &graph = this->graph_;
-    auto &adj_graph = graph.getAdjacencyGraph();
+    auto& graph = this->graph_;
+    auto& adj_graph = graph.getAdjacencyGraph();
 
-    famgraph::VertexMap(graph, [&](Vertex &vertex, VertexLabel) noexcept {
+    famgraph::VertexMap(graph, [&](Vertex& vertex, VertexLabel) noexcept {
       vertex.value = 0.0;
       vertex.delta = INIT_RESIDUAL;
       vertex.residual = 0.0;
@@ -308,7 +311,7 @@ public:
     int iterations = 0;
     while (!frontier->IsEmpty()) {
       EdgeMap(adj_graph, *frontier, push);
-      VertexMap(graph, [&](Vertex &vertex, VertexLabel v) noexcept {
+      VertexMap(graph, [&](Vertex& vertex, VertexLabel v) noexcept {
         if (vertex.vertex_map()) next_frontier->Set(v);
       });
       frontier->Clear();

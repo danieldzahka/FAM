@@ -1,6 +1,9 @@
 add_subdirectory(FAM)
 add_subdirectory(famgraph)
 add_subdirectory(graph_algs)
+if (ENABLE_DISTRIBUTED)
+    add_subdirectory(distributed)
+endif ()
 
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
