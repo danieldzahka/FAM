@@ -116,3 +116,9 @@ if (ENABLE_DISTRIBUTED)
             COMMAND ${MPIEXEC_EXECUTABLE} -mca btl_openib_allow_ib true ${MPIEXEC_NUMPROC_FLAG} 1
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:distributed_tests> ${MPIEXEC_POSTFLAGS})
 endif ()
+
+if (ENABLE_TOOLS)
+    add_executable(codec_tests codec_tests.cpp)
+    target_link_libraries(codec_tests PRIVATE project_warnings project_options catch_main codec)
+    target_include_directories(codec_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+endif ()

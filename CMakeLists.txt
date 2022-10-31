@@ -55,6 +55,10 @@ dynamic_project_options()
 target_compile_features(project_options INTERFACE cxx_std_${CMAKE_CXX_STANDARD})
 
 option(ENABLE_DISTRIBUTED "Enable Distributed Features" OFF)
+option(ENABLE_TOOLS "Enable Graph Conversion Tools" OFF)
+if (ENABLE_TOOLS)
+    add_subdirectory(tools)
+endif ()
 
 add_subdirectory(src)
 
