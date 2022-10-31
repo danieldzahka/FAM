@@ -41,8 +41,10 @@ target_link_libraries(algorithm_tests PRIVATE project_warnings project_options c
 target_include_directories(algorithm_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(algorithm_tests server)
 
-# automatically discover tests that are defined in catch based test files you can modify the unittests. Set TEST_PREFIX
-# to whatever you want, or use different for different binaries
+add_executable(codec_tests codec_tests.cpp)
+target_link_libraries(codec_tests PRIVATE project_warnings project_options catch_main codec)
+target_include_directories(codec_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
 catch_discover_tests(
         tests
         TEST_PREFIX
@@ -95,6 +97,19 @@ catch_discover_tests(
         OUTPUT_SUFFIX
         .xml)
 
+catch_discover_tests(
+        codec_tests
+        TEST_PREFIX
+        "unittests."
+        REPORTER
+        xml
+        OUTPUT_DIR
+        .
+        OUTPUT_PREFIX
+        "unittests."
+        OUTPUT_SUFFIX
+        .xml)
+
 if (ENABLE_DISTRIBUTED)
     find_package(MPI REQUIRED)
     add_executable(distributed_tests distributed_tests.cpp)
@@ -115,10 +130,4 @@ if (ENABLE_DISTRIBUTED)
     add_custom_target(run_distributed_tests_serial
             COMMAND ${MPIEXEC_EXECUTABLE} -mca btl_openib_allow_ib true ${MPIEXEC_NUMPROC_FLAG} 1
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:distributed_tests> ${MPIEXEC_POSTFLAGS})
-endif ()
-
-if (ENABLE_TOOLS)
-    add_executable(codec_tests codec_tests.cpp)
-    target_link_libraries(codec_tests PRIVATE project_warnings project_options catch_main codec)
-    target_include_directories(codec_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif ()

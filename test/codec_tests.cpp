@@ -47,7 +47,7 @@ TEST_CASE("Compress Decompress")
     famgraph::tools::CompressionOptions options{ 10, 1000 };
     auto const [compressed, count] = famgraph::tools::Compress(p, n, options);
     std::vector<uint32_t> other;
-    auto const build = [&](uint32_t x) { other.push_back(x); };
+    auto const build = [&](uint32_t x, uint32_t) { other.push_back(x); };
     famgraph::tools::Decompress(compressed.get(), count, build);
     REQUIRE(v == other);
   }

@@ -1,3 +1,4 @@
+add_subdirectory(codec)
 add_subdirectory(FAM)
 add_subdirectory(famgraph)
 add_subdirectory(graph_algs)

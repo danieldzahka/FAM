@@ -8,4 +8,4 @@ target_link_libraries(codec PRIVATE
         spdlog::spdlog
         fmt::fmt
         )
-target_include_directories(codec PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(codec PUBLIC include)

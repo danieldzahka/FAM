@@ -57,7 +57,7 @@ template<typename T> void Write(uint32_t *out, uint32_t *in, uint32_t n)
 
 std::pair<std::unique_ptr<uint32_t[]>, uint64_t> famgraph::tools::Compress(
   uint32_t *array,
-  uint64_t n,
+  uint32_t n,
   CompressionOptions const& options)
 {
   if (n == 0) return std::pair(nullptr, 0);
@@ -65,7 +65,7 @@ std::pair<std::unique_ptr<uint32_t[]>, uint64_t> famgraph::tools::Compress(
   auto remaining = n;
   auto *p = array;
   std::vector<Block> blocks;
-  auto output_4B_words = 0U;
+  auto output_4B_words = 1U;
   while (remaining > 0) {
     auto const b = DetermineNextBlock(p, remaining, options);
     remaining -= b.num_vals;
@@ -75,7 +75,8 @@ std::pair<std::unique_ptr<uint32_t[]>, uint64_t> famgraph::tools::Compress(
   }
 
   auto output = new uint32_t[output_4B_words];
-  uint32_t *out = output;
+  output[0] = n;
+  uint32_t *out = output + 1;
   auto *in = array;
   for (auto const block : blocks) {
     out[0] = block.Pack();
