@@ -98,35 +98,6 @@ public:
     //    word &= mask;
   }
 
-  static std::vector<famgraph::VertexRange> ConvertToRanges(
-    VertexSubset const& vertex_subset) noexcept
-  {
-    return ConvertToRanges(vertex_subset, 0, vertex_subset.max_v_ + 1);
-  }
-
-  static std::vector<famgraph::VertexRange> ConvertToRanges(
-    VertexSubset const& vertex_subset,
-    VertexLabel start,
-    VertexLabel end_exclusive) noexcept
-  {
-    std::vector<famgraph::VertexRange> ret;
-    auto const range_start = start;
-    auto const range_end_exclusive = end_exclusive;
-
-    unsigned int i = range_start;
-    while (i < range_end_exclusive) {
-      if (vertex_subset[i]) {
-        ret.push_back({ i, i });
-        auto& current_range = ret.back();
-        while (i < range_end_exclusive && vertex_subset[i]) {
-          current_range.end_exclusive = ++i;
-        }
-      }
-      ++i;
-    }
-    return ret;
-  }
-
   [[nodiscard]] uint32_t GetMaxV() const noexcept;
   std::uint64_t *GetTable() noexcept;
   std::uint32_t Count() noexcept;
