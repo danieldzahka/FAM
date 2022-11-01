@@ -45,7 +45,7 @@ template<typename AdjacencyGraph> struct GraphWrapper
   std::string_view name;
 };
 
-template<typename AdjacencyGraph = famgraph::LocalGraph, typename... Args>
+template<typename AdjacencyGraph = famgraph::LocalGraph<>, typename... Args>
 GraphWrapper<AdjacencyGraph> CreateGraph(Args... args)
 {
   auto graph_base = GENERATE(
@@ -81,7 +81,7 @@ TEST_CASE("LocalGraph Construction", "[local]")
 TEST_CASE("RemoteGraph Construction", "[rdma]")
 {
   int const rdma_channels = 1;
-  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph>(
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
     memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   auto plain_text_edge_list =
@@ -107,7 +107,8 @@ TEST_CASE("LocalGraph Vertex Table", "[local]")
     int value{ magic };
   };
   auto [local_graph, graph_base] = CreateGraph();
-  auto graph = famgraph::Graph<TestVertex, famgraph::LocalGraph>{ local_graph };
+  auto graph =
+    famgraph::Graph<TestVertex, famgraph::LocalGraph<>>{ local_graph };
 
   auto& vert = graph[0];
   REQUIRE(vert.value == magic);
@@ -221,7 +222,7 @@ TEST_CASE("Local Filter Edgemap with Ranges", "[local]")
 TEST_CASE("Remote Filter Edgemap", "[rdma]")
 {
   int const rdma_channels = 1;
-  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph>(
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
     memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   std::random_device rd;
@@ -247,7 +248,7 @@ TEST_CASE("Remote Filter Edgemap", "[rdma]")
 TEST_CASE("Remote Filter Edgemap with Ranges", "[rdma]")
 {
   int const rdma_channels = 1;
-  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph>(
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
     memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   std::random_device rd;

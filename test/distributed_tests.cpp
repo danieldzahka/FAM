@@ -159,7 +159,7 @@ void REQUIRE(bool ok)
   }
 }
 
-template<typename AdjacencyGraph = famgraph::LocalGraph, typename... Args>
+template<typename AdjacencyGraph = famgraph::LocalGraph<>, typename... Args>
 AdjacencyGraph CreateGraph(std::string_view graph_base, Args... args)
 {
   auto index_file = fmt::format("{}.{}", graph_base, "idx");

@@ -149,7 +149,7 @@ const std::map<std::string_view, PageRankResult> pagerank_output{
       } } }
 };
 
-template<typename AdjacencyGraph = famgraph::LocalGraph, typename... Args>
+template<typename AdjacencyGraph = famgraph::LocalGraph<>, typename... Args>
 AdjacencyGraph CreateGraph(std::string_view graph_base, Args... args)
 {
   auto index_file = fmt::format("{}.{}", graph_base, "idx");
@@ -227,7 +227,7 @@ TEST_CASE("RemoteGraph Breadth First Search", "[rdma]")
   int const rdma_channels = 5;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
+  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunBFS(graph, graph_base, start_vertex);
 }
@@ -254,7 +254,7 @@ TEST_CASE("RemoteGraph Kcore Decomposition", "[rdma]")
   int const rdma_channels = 5;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
+  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunKcore(graph, graph_base, k);
 }
@@ -273,7 +273,7 @@ TEST_CASE("RemoteGraph ConnectedComponents", "[rdma]")
   int const rdma_channels = 5;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
+  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunConnectedComponents(graph, graph_base);
 }
@@ -292,7 +292,7 @@ TEST_CASE("RemoteGraph PageRank", "[rdma]")
   int const rdma_channels = 5;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
+  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunPageRank(graph, graph_base);
 }
@@ -311,7 +311,7 @@ TEST_CASE("Large Graph RemoteGraph Breadth First Search", "[rdma][long]")
   int const rdma_channels = 10;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
+  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunBFS(graph, graph_base, start_vertex);
 }
@@ -330,7 +330,7 @@ TEST_CASE("Large Graph RemoteGraph Kcore Decomposition", "[rdma][long]")
   int const rdma_channels = 10;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
+  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunKcore(graph, graph_base, k);
 }
@@ -349,7 +349,7 @@ TEST_CASE("Large Graph RemoteGraph ConnectedComponents", "[rdma][long]")
   int const rdma_channels = 10;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
+  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunConnectedComponents(graph, graph_base);
 }
@@ -368,7 +368,7 @@ TEST_CASE("Large Graph RemoteGraph PageRank", "[rdma][long]")
   int const rdma_channels = 10;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph>(
+  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
     graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
   RunPageRank(graph, graph_base);
 }

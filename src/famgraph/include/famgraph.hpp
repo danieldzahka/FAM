@@ -8,6 +8,7 @@
 #include <fgidx.hpp>
 #include <FAM.hpp>
 #include <FAM_constants.hpp>
+#include <nop_decompressor.hpp>
 
 #include <oneapi/tbb.h>
 
@@ -105,7 +106,7 @@ public:
 
 void PrintVertexSubset(VertexSubset const& vertex_subset) noexcept;
 
-class RemoteGraph
+template<typename Decompressor = NopDecompressor> class RemoteGraph
 {
   fgidx::DenseIndex const idx_;
   std::unique_ptr<FAM::FamControl> fam_control_;
@@ -115,11 +116,28 @@ class RemoteGraph
   RemoteGraph(fgidx::DenseIndex&& idx,
     std::unique_ptr<FAM::FamControl>&& fam_control,
     FAM::FamControl::RemoteRegion adjacency_array,
-    FAM::FamControl::LocalRegion edge_window);
+    FAM::FamControl::LocalRegion edge_window)
+    : idx_{ std::move(idx) }, fam_control_{ std::move(fam_control) },
+      adjacency_array_{ adjacency_array }, edge_window_{ edge_window }
+  {}
 
   void PostSegmentsAndWait(std::vector<FAM::FamSegment> const& segments,
     std::uint32_t taken,
-    int channel) noexcept;
+    int channel) noexcept
+  {
+    auto const [buffer, unused] = this->GetChannelBuffer(channel);
+    auto *edges = static_cast<uint32_t volatile *>(buffer);
+    auto const end = taken - 1;
+    edges[0] = famgraph::null_vert;
+    edges[end] = famgraph::null_vert;
+    auto const rkey = this->adjacency_array_.rkey;
+    auto const lkey = this->edge_window_.lkey;
+    this->fam_control_->Read(
+      buffer, segments, lkey, rkey, static_cast<unsigned long>(channel));
+    while (
+      edges[0] == famgraph::null_vert || edges[end] == famgraph::null_vert) {}
+  }
+
 
   struct SegmentDescriptor
   {
@@ -169,15 +187,38 @@ class RemoteGraph
   }
 
 public:
-  static famgraph::RemoteGraph CreateInstance(std::string const& index_file,
+  static auto CreateInstance(std::string const& index_file,
     std::string const& adj_file,
     std::string const& grpc_addr,
     std::string const& ipoib_addr,
     std::string const& ipoib_port,
-    int rdma_channels);
+    int rdma_channels)
+  {
+    auto fam_control = std::make_unique<FAM::FamControl>(
+      grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+    auto const adjacency_file = fam_control->MmapRemoteFile(adj_file);
+    uint64_t const edges = adjacency_file.length / sizeof(uint32_t);
 
-  [[nodiscard]] uint32_t max_v() const noexcept;
-  [[nodiscard]] EdgeIndexType Degree(VertexLabel v) const noexcept;
+    auto index = fgidx::DenseIndex::CreateInstance(index_file, edges);
+
+    auto const edge_window_size = index.max_out_degree
+                                  * static_cast<unsigned long>(rdma_channels)
+                                  * sizeof(uint32_t);
+    auto const edge_window =
+      fam_control->CreateRegion(edge_window_size, false, true);
+
+    return RemoteGraph{
+      std::move(index), std::move(fam_control), adjacency_file, edge_window
+    };
+  }
+
+  uint32_t max_v() const noexcept { return this->idx_.v_max; }
+
+  famgraph::EdgeIndexType Degree(VertexLabel v) const noexcept
+  {
+    auto interval = this->idx_[v];
+    return interval.end_exclusive - interval.begin;
+  }
 
   struct Buffer
   {
@@ -185,7 +226,16 @@ public:
     uint64_t const length;
   };
 
-  [[nodiscard]] Buffer GetChannelBuffer(int channel) const noexcept;
+  Buffer GetChannelBuffer(int channel) const noexcept
+  {
+    auto const& edge_window = this->edge_window_;
+    auto *p = static_cast<char *>(edge_window.laddr);
+    auto const length =
+      (edge_window.length
+        / static_cast<unsigned long>(this->fam_control_->rdma_channels_));
+
+    return { p + length * static_cast<unsigned long>(channel), length };
+  }
 
   template<typename Function, typename Filter>
   void EdgeMap(Function f,
@@ -216,7 +266,11 @@ public:
       for (auto const [v] : descriptors) {
         auto const [start_inclusive, end_exclusive] = this->idx_[v];
         auto const num_edges = end_exclusive - start_inclusive;
-        for (unsigned int i = 0; i < num_edges; ++i) f(v, b[i], num_edges);
+        Decompressor::Decompress(b,
+          num_edges,
+          [&](uint32_t dst, uint32_t degree) { f(v, dst, degree); });
+        //        for (unsigned int i = 0; i < num_edges; ++i) f(v, b[i],
+        //        num_edges);
         b += num_edges;
       }
     }
@@ -246,20 +300,33 @@ public:
   }
 };
 
-class LocalGraph
+template<typename Decompressor = NopDecompressor> class LocalGraph
 {
   fgidx::DenseIndex idx_;
   std::unique_ptr<uint32_t[]> adjacency_array_;
 
   LocalGraph(fgidx::DenseIndex&& idx,
-    std::unique_ptr<uint32_t[]>&& adjacency_array);
+    std::unique_ptr<uint32_t[]>&& adjacency_array)
+    : idx_(std::move(idx)), adjacency_array_(std::move(adjacency_array))
+  {}
 
 public:
   static LocalGraph CreateInstance(std::string const& index_file,
-    std::string const& adj_file);
+    std::string const& adj_file)
+  {
+    auto [edges, array] = fgidx::CreateAdjacencyArray(adj_file);
+    return { fgidx::DenseIndex::CreateInstance(index_file, edges),
+      std::move(array) };
+  }
 
-  [[nodiscard]] uint32_t max_v() const noexcept;
-  [[nodiscard]] EdgeIndexType Degree(VertexLabel v) const noexcept;
+
+  uint32_t max_v() const noexcept { return this->idx_.v_max; }
+
+  famgraph::EdgeIndexType Degree(famgraph::VertexLabel v) const noexcept
+  {
+    auto interval = this->idx_[v];
+    return interval.end_exclusive - interval.begin;
+  }
 
   template<typename Function, typename Filter>
   void EdgeMap(Function& f,
@@ -270,9 +337,12 @@ public:
       auto const [start_inclusive, end_exclusive] = this->idx_[v];
       auto const num_edges = end_exclusive - start_inclusive;
       auto const *edges = &this->adjacency_array_[start_inclusive];
-      for (unsigned int i = 0; i < num_edges; ++i) {
-        f(v, edges[i], num_edges);
-      }
+      Decompressor::Decompress(edges,
+        num_edges,
+        [&](uint32_t dst, uint32_t degree) { f(v, dst, degree); });
+      //      for (unsigned int i = 0; i < num_edges; ++i) {
+      //        f(v, edges[i], num_edges);
+      //      }
     }
   }
   template<typename Function>

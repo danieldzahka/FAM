@@ -9,6 +9,7 @@ target_link_libraries(edgelist2fg PRIVATE
         project_options
         project_warnings
         Boost::program_options
+        Boost::filesystem
         oneDPL
         spdlog::spdlog
         )
@@ -18,6 +19,10 @@ target_link_libraries(fg2compressed PRIVATE
         project_options
         project_warnings
         Boost::program_options
+        Boost::filesystem
+        Boost::log
+        Boost::log_setup
         oneDPL
         spdlog::spdlog
+        codec
         )
