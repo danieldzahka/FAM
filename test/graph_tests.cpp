@@ -62,7 +62,7 @@ GraphWrapper<AdjacencyGraph> CreateGraph(std::string_view suffix, Args... args)
     graph_base };
 }
 
-std::vector<std::string_view> const vec {"","2"};
+std::vector<std::string_view> const vec{ "", "2" };
 }// namespace
 
 TEMPLATE_TEST_CASE_SIG("LocalGraph Construction",
@@ -87,11 +87,15 @@ TEMPLATE_TEST_CASE_SIG("LocalGraph Construction",
   CompareEdgeLists(edge_list, edge_list2);
 }
 
-TEST_CASE("RemoteGraph Construction", "[rdma]")
+TEMPLATE_TEST_CASE_SIG("RemoteGraph Construction",
+  "[rdma]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   int const rdma_channels = 1;
-  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
-    "", memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<T>>(
+    vec[V], memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
@@ -108,16 +112,20 @@ TEST_CASE("RemoteGraph Construction", "[rdma]")
   CompareEdgeLists(edge_list, edge_list2);
 }
 
-TEST_CASE("LocalGraph Vertex Table", "[local]")
+TEMPLATE_TEST_CASE_SIG("LocalGraph Vertex Table",
+  "[local]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   int constexpr static magic = 123321;
   struct TestVertex
   {
     int value{ magic };
   };
-  auto [local_graph, graph_base] = CreateGraph("");
+  auto [local_graph, graph_base] = CreateGraph<famgraph::LocalGraph<T>>(vec[V]);
   auto graph =
-    famgraph::Graph<TestVertex, famgraph::LocalGraph<>>{ local_graph };
+    famgraph::Graph<TestVertex, famgraph::LocalGraph<T>>{ local_graph };
 
   auto& vert = graph[0];
   REQUIRE(vert.value == magic);
@@ -176,9 +184,13 @@ famgraph::VertexSubset RandomVertexSet(std::uint32_t n, std::mt19937& gen)
 }
 }// namespace
 
-TEST_CASE("Local Filter Edgemap", "[local]")
+TEMPLATE_TEST_CASE_SIG("Local Filter Edgemap",
+  "[local]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
-  auto [graph, graph_base] = CreateGraph("");
+  auto [graph, graph_base] = CreateGraph<famgraph::LocalGraph<T>>(vec[V]);
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
 
@@ -200,9 +212,13 @@ TEST_CASE("Local Filter Edgemap", "[local]")
   CompareEdgeLists(edge_list, edge_list2);
 }
 
-TEST_CASE("Local Filter Edgemap with Ranges", "[local]")
+TEMPLATE_TEST_CASE_SIG("Local Filter Edgemap with Ranges",
+  "[local]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
-  auto [graph, graph_base] = CreateGraph("");
+  auto [graph, graph_base] = CreateGraph<famgraph::LocalGraph<T>>(vec[V]);
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
 
@@ -228,11 +244,15 @@ TEST_CASE("Local Filter Edgemap with Ranges", "[local]")
   CompareEdgeLists(edge_list, edge_list2);
 }
 
-TEST_CASE("Remote Filter Edgemap", "[rdma]")
+TEMPLATE_TEST_CASE_SIG("Remote Filter Edgemap",
+  "[rdma]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   int const rdma_channels = 1;
-  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
-    "", memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<T>>(
+    vec[V], memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   std::random_device rd;
   std::mt19937 gen(rd());
@@ -254,11 +274,15 @@ TEST_CASE("Remote Filter Edgemap", "[rdma]")
   CompareEdgeLists(edge_list, edge_list2);
 }
 
-TEST_CASE("Remote Filter Edgemap with Ranges", "[rdma]")
+TEMPLATE_TEST_CASE_SIG("Remote Filter Edgemap with Ranges",
+  "[rdma]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   int const rdma_channels = 1;
-  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
-    "", memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<T>>(
+    vec[V], memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   std::random_device rd;
   std::mt19937 gen(rd());
