@@ -6,6 +6,7 @@
 
 #include <constants.hpp>
 #include <famgraph.hpp>
+#include <codec.hpp>
 #include <unordered_set>
 
 namespace {
@@ -46,23 +47,31 @@ template<typename AdjacencyGraph> struct GraphWrapper
 };
 
 template<typename AdjacencyGraph = famgraph::LocalGraph<>, typename... Args>
-GraphWrapper<AdjacencyGraph> CreateGraph(Args... args)
+GraphWrapper<AdjacencyGraph> CreateGraph(std::string_view suffix, Args... args)
 {
   auto graph_base = GENERATE(
     "small/small", "Gnutella04/p2p-Gnutella04", "last_vert_non_empty/graph");
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
-  auto index_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "idx");
-  auto adjacency_file = fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "adj");
+  auto index_file =
+    fmt::format("{}/{}.{}{}", INPUTS_DIR, graph_base, "idx", suffix);
+  auto adjacency_file =
+    fmt::format("{}/{}.{}{}", INPUTS_DIR, graph_base, "adj", suffix);
 
   return { AdjacencyGraph::CreateInstance(index_file, adjacency_file, args...),
     graph_base };
 }
+
+std::vector<std::string_view> const vec {"","2"};
 }// namespace
 
-TEST_CASE("LocalGraph Construction", "[local]")
+TEMPLATE_TEST_CASE_SIG("LocalGraph Construction",
+  "[local]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
-  auto [graph, graph_base] = CreateGraph();
+  auto [graph, graph_base] = CreateGraph<famgraph::LocalGraph<T>>(vec[V]);
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
   auto const edge_list = CreateEdgeList(plain_text_edge_list);
@@ -82,7 +91,7 @@ TEST_CASE("RemoteGraph Construction", "[rdma]")
 {
   int const rdma_channels = 1;
   auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
-    memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+    "", memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
@@ -106,7 +115,7 @@ TEST_CASE("LocalGraph Vertex Table", "[local]")
   {
     int value{ magic };
   };
-  auto [local_graph, graph_base] = CreateGraph();
+  auto [local_graph, graph_base] = CreateGraph("");
   auto graph =
     famgraph::Graph<TestVertex, famgraph::LocalGraph<>>{ local_graph };
 
@@ -169,7 +178,7 @@ famgraph::VertexSubset RandomVertexSet(std::uint32_t n, std::mt19937& gen)
 
 TEST_CASE("Local Filter Edgemap", "[local]")
 {
-  auto [graph, graph_base] = CreateGraph();
+  auto [graph, graph_base] = CreateGraph("");
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
 
@@ -193,7 +202,7 @@ TEST_CASE("Local Filter Edgemap", "[local]")
 
 TEST_CASE("Local Filter Edgemap with Ranges", "[local]")
 {
-  auto [graph, graph_base] = CreateGraph();
+  auto [graph, graph_base] = CreateGraph("");
   auto plain_text_edge_list =
     fmt::format("{}/{}.{}", INPUTS_DIR, graph_base, "txt");
 
@@ -223,7 +232,7 @@ TEST_CASE("Remote Filter Edgemap", "[rdma]")
 {
   int const rdma_channels = 1;
   auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
-    memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+    "", memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   std::random_device rd;
   std::mt19937 gen(rd());
@@ -249,7 +258,7 @@ TEST_CASE("Remote Filter Edgemap with Ranges", "[rdma]")
 {
   int const rdma_channels = 1;
   auto [graph, graph_base] = CreateGraph<famgraph::RemoteGraph<>>(
-    memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+    "", memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
 
   std::random_device rd;
   std::mt19937 gen(rd());

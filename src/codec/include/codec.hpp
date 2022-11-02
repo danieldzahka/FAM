@@ -47,44 +47,49 @@ struct CompressionOptions
 std::pair<std::unique_ptr<uint32_t[]>, uint64_t>
   Compress(uint32_t *array, uint32_t n, CompressionOptions const& options);
 
-template<typename T, typename Function>
-void Apply(uint32_t *buffer,
-  uint32_t n,
-  Function const& f,
-  uint32_t degree) noexcept
+struct DeltaDecompressor
 {
-  auto acc = buffer[0];
-  T *arr = reinterpret_cast<T *>(buffer + 1);
-  f(acc, degree);
-  for (int i = 0; i < n - 1; ++i) {
-    acc += arr[i];
+  template<typename T, typename Function>
+  static void Apply(uint32_t const *buffer,
+    uint32_t n,
+    Function const& f,
+    uint32_t degree) noexcept
+  {
+    auto acc = buffer[0];
+    T const *arr = reinterpret_cast<T const *>(buffer + 1);
     f(acc, degree);
-  }
-}
-
-template<typename Function>
-void Decompress(uint32_t *buffer, uint64_t n, Function const& f) noexcept
-{
-  auto *end = buffer + n;
-  auto const degree = buffer[0];
-  auto *p = buffer + 1;
-  while (p < end) {
-    auto const packed_block = p[0];
-    auto const b = famgraph::tools::Block::Unpack(packed_block);
-    switch (b.delta_size) {
-    case 1:
-      Apply<uint8_t>(p + 1, b.num_vals, f, degree);
-      break;
-    case 2:
-      Apply<uint16_t>(p + 1, b.num_vals, f, degree);
-      break;
-    case 4:
-      Apply<uint32_t>(p + 1, b.num_vals, f, degree);
-      break;
+    for (int i = 0; i < n - 1; ++i) {
+      acc += arr[i];
+      f(acc, degree);
     }
-    p += b.AlignedWords();
   }
-}
+
+  template<typename Function>
+  static void
+    Decompress(uint32_t const *buffer, uint64_t n, Function const& f) noexcept
+  {
+    if (n == 0) return;
+    auto *end = buffer + n;
+    auto const degree = buffer[0];
+    auto *p = buffer + 1;
+    while (p < end) {
+      auto const packed_block = p[0];
+      auto const b = famgraph::tools::Block::Unpack(packed_block);
+      switch (b.delta_size) {
+      case 1:
+        Apply<uint8_t>(p + 1, b.num_vals, f, degree);
+        break;
+      case 2:
+        Apply<uint16_t>(p + 1, b.num_vals, f, degree);
+        break;
+      case 4:
+        Apply<uint32_t>(p + 1, b.num_vals, f, degree);
+        break;
+      }
+      p += b.AlignedWords();
+    }
+  }
+};
 }// namespace famgraph::tools
 
 #endif// FAM_CODEC_HPP

@@ -43,35 +43,6 @@ template<typename T> std::vector<T> ToVector(std::ifstream& s, uint32_t n)
   return ret;
 }
 
-template<typename T> void write_one(fs::ofstream& o, T const x)
-{
-  o.write(reinterpret_cast<char const *>(&x), sizeof(x));
-}
-
-void CompressGraph(std::vector<uint64_t> const& idx,
-  fs::ofstream& idx_os,
-  fs::ofstream& adj_os,
-  uint64_t edges,
-  std::ifstream& adj_is)
-{
-  auto const n = idx.size();
-  uint64_t off = 0;
-  for (uint32_t i = 0; i < n; ++i) {
-    write_one(idx_os, off);
-    auto const a = idx[i];
-    auto const b = i == n - 1 ? edges : idx[i + 1];
-    auto const degree = b - a;
-    if (degree == 0) continue;
-    auto uncompressed = ToVector<uint32_t>(adj_is, degree);
-    famgraph::tools::CompressionOptions options{ 10, 1000 };
-    auto const [compressed, count] =
-      famgraph::tools::Compress(uncompressed.data(), degree, options);
-    for (int j = 0; j < count; ++j) { write_one(adj_os, compressed[j]); }
-    off += count;
-  }
-}
-
-
 void validate_file(fs::path const& p)
 {
   if (!(fs::exists(p) && fs::is_regular_file(p))) {
@@ -115,16 +86,20 @@ int main(int argc, char *argv[])
     std::ifstream adjstream(adj.c_str(), std::ios::binary);
     if (!adjstream) throw std::runtime_error("Couldn't open file!");
 
-    auto index_out = index.replace_extension(".idx2");
-    auto adj_out = adj.replace_extension(".adj2");
-    fs::ofstream index_os(index_out);
-    fs::ofstream adj_os(adj_out);
-
     auto const I = ToVector<uint64_t>(idxstream, verts);
-    CompressGraph(I, index_os, adj_os, edges, adjstream);
+    auto const Aj = ToVector<uint32_t>(adjstream, edges);
 
-    index_os.close();
-    adj_os.close();
+    for (int i = 0; i < verts; ++i) {
+      //      std::cout << i << " " << I[i] << "\n";
+      auto const A = I[i];
+      auto const B = i == verts - 1 ? edges : I[i + 1];
+      auto const l = B - A;
+      if (l == 0) continue;
+      auto const buf = Aj.data() + A;
+      famgraph::tools::DeltaDecompressor::Decompress(
+        buf, l, [&](auto d, auto u) { std::cout << i << " " << d << "\n"; });
+    }
+
     return 0;
   } catch (std::exception const& ex) {
     std::cout << "Caught Runtime Exception: " << ex.what() << std::endl;

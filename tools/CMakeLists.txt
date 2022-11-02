@@ -26,3 +26,16 @@ target_link_libraries(fg2compressed PRIVATE
         spdlog::spdlog
         codec
         )
+
+add_executable(print_compressed print_compressed.cpp)
+target_link_libraries(print_compressed PRIVATE
+        project_options
+        project_warnings
+        Boost::program_options
+        Boost::filesystem
+        Boost::log
+        Boost::log_setup
+        oneDPL
+        spdlog::spdlog
+        codec
+        )

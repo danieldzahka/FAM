@@ -32,12 +32,12 @@ target_link_libraries(fgidxtests PRIVATE project_warnings project_options catch_
 target_include_directories(fgidxtests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(graph_tests graph_tests.cpp)
-target_link_libraries(graph_tests PRIVATE project_warnings project_options catch_main fmt::fmt famgraph)
+target_link_libraries(graph_tests PRIVATE project_warnings project_options catch_main fmt::fmt famgraph codec)
 target_include_directories(graph_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(graph_tests server)
 
 add_executable(algorithm_tests algorithm_tests.cpp)
-target_link_libraries(algorithm_tests PRIVATE project_warnings project_options catch_main fmt::fmt famgraph_algs)
+target_link_libraries(algorithm_tests PRIVATE project_warnings project_options catch_main fmt::fmt famgraph_algs codec)
 target_include_directories(algorithm_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(algorithm_tests server)
 
