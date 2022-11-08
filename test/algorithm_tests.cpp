@@ -6,6 +6,7 @@
 
 #include <constants.hpp>
 #include <famgraph.hpp>
+#include <codec.hpp>
 #include <famgraph_algorithms.hpp>
 
 namespace {
@@ -150,10 +151,12 @@ const std::map<std::string_view, PageRankResult> pagerank_output{
 };
 
 template<typename AdjacencyGraph = famgraph::LocalGraph<>, typename... Args>
-AdjacencyGraph CreateGraph(std::string_view graph_base, Args... args)
+AdjacencyGraph CreateGraph(std::string_view graph_base,
+  std::string_view suffix,
+  Args... args)
 {
-  auto index_file = fmt::format("{}.{}", graph_base, "idx");
-  auto adjacency_file = fmt::format("{}.{}", graph_base, "adj");
+  auto index_file = fmt::format("{}.{}{}", graph_base, "idx", suffix);
+  auto adjacency_file = fmt::format("{}.{}{}", graph_base, "adj", suffix);
 
   return { AdjacencyGraph::CreateInstance(
     index_file, adjacency_file, args...) };
@@ -209,30 +212,48 @@ void RunPageRank(Graph& graph, std::string_view graph_base)
     REQUIRE(percent_difference < reference.tolerance);
   }
 }
+
+std::vector<std::string_view> const vec{ "", "2" };
 }// namespace
 
-TEST_CASE("LocalGraph Breadth First Search", "[local]")
+TEMPLATE_TEST_CASE_SIG("LocalGraph Breadth First Search",
+  "[local]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
   auto [graph_base, start_vertex] = GENERATE(
     BfsKey{ small, 0 }, BfsKey{ gnutella, 0 }, BfsKey{ last_vert_nonempty, 0 });
-  auto graph = CreateGraph(graph_base);
+  auto graph = CreateGraph<famgraph::LocalGraph<T>>(graph_base, vec[V]);
   RunBFS(graph, graph_base, start_vertex);
 }
 
-TEST_CASE("RemoteGraph Breadth First Search", "[rdma]")
+TEMPLATE_TEST_CASE_SIG("RemoteGraph Breadth First Search",
+  "[rdma]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   auto [graph_base, start_vertex] = GENERATE(
     BfsKey{ small, 0 }, BfsKey{ gnutella, 0 }, BfsKey{ last_vert_nonempty, 0 });
   int const rdma_channels = 5;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto graph = CreateGraph<famgraph::RemoteGraph<T>>(graph_base,
+    vec[V],
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
   RunBFS(graph, graph_base, start_vertex);
 }
 
-TEST_CASE("LocalGraph Kcore Decomposition", "[local]")
+TEMPLATE_TEST_CASE_SIG("LocalGraph Kcore Decomposition",
+  "[local]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
   auto [graph_base, k] = GENERATE(KcoreKey{ small_symmetric, 2 },
@@ -240,11 +261,15 @@ TEST_CASE("LocalGraph Kcore Decomposition", "[local]")
     KcoreKey{ gnutella_symmetric, 6 },
     KcoreKey{ gnutella_symmetric, 7 });
 
-  auto graph = CreateGraph(graph_base);
+  auto graph = CreateGraph<famgraph::LocalGraph<T>>(graph_base, vec[V]);
   RunKcore(graph, graph_base, k);
 }
 
-TEST_CASE("RemoteGraph Kcore Decomposition", "[rdma]")
+TEMPLATE_TEST_CASE_SIG("RemoteGraph Kcore Decomposition",
+  "[rdma]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   auto [graph_base, k] = GENERATE(KcoreKey{ small_symmetric, 2 },
     KcoreKey{ gnutella_symmetric, 5 },
@@ -254,121 +279,197 @@ TEST_CASE("RemoteGraph Kcore Decomposition", "[rdma]")
   int const rdma_channels = 5;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto graph = CreateGraph<famgraph::RemoteGraph<T>>(graph_base,
+    vec[V],
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
   RunKcore(graph, graph_base, k);
 }
 
-TEST_CASE("LocalGraph ConnectedComponents", "[local]")
+TEMPLATE_TEST_CASE_SIG("LocalGraph ConnectedComponents",
+  "[local]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
   auto graph_base = GENERATE(small_symmetric, gnutella_symmetric);
-  auto graph = CreateGraph(graph_base);
+  auto graph = CreateGraph<famgraph::LocalGraph<T>>(graph_base, vec[V]);
   RunConnectedComponents(graph, graph_base);
 }
 
-TEST_CASE("RemoteGraph ConnectedComponents", "[rdma]")
+TEMPLATE_TEST_CASE_SIG("RemoteGraph ConnectedComponents",
+  "[rdma]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   auto graph_base = GENERATE(small_symmetric, gnutella_symmetric);
   int const rdma_channels = 5;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto graph = CreateGraph<famgraph::RemoteGraph<T>>(graph_base,
+    vec[V],
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
   RunConnectedComponents(graph, graph_base);
 }
 
-TEST_CASE("LocalGraph PageRank", "[local]")
+TEMPLATE_TEST_CASE_SIG("LocalGraph PageRank",
+  "[local]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
   auto graph_base = GENERATE(gnutella);
-  auto graph = CreateGraph(graph_base);
+  auto graph = CreateGraph<famgraph::LocalGraph<T>>(graph_base, vec[V]);
   RunPageRank(graph, graph_base);
 }
 
-TEST_CASE("RemoteGraph PageRank", "[rdma]")
+TEMPLATE_TEST_CASE_SIG("RemoteGraph PageRank",
+  "[rdma]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   auto graph_base = GENERATE(gnutella);
   int const rdma_channels = 5;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto graph = CreateGraph<famgraph::RemoteGraph<T>>(graph_base,
+    vec[V],
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
   RunPageRank(graph, graph_base);
 }
 
-TEST_CASE("Large Graph LocalGraph Breadth First Search", "[local][long]")
+TEMPLATE_TEST_CASE_SIG("Large Graph LocalGraph Breadth First Search",
+  "[local][long]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
   auto [graph_base, start_vertex] = GENERATE(BfsKey{ twitter7_symmetric, 1 });
-  auto graph = CreateGraph(graph_base);
+  auto graph = CreateGraph<famgraph::LocalGraph<T>>(graph_base, vec[V]);
   RunBFS(graph, graph_base, start_vertex);
 }
 
-TEST_CASE("Large Graph RemoteGraph Breadth First Search", "[rdma][long]")
+TEMPLATE_TEST_CASE_SIG("Large Graph RemoteGraph Breadth First Search",
+  "[rdma][long]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   auto [graph_base, start_vertex] = GENERATE(BfsKey{ twitter7_symmetric, 1 });
   int const rdma_channels = 10;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto graph = CreateGraph<famgraph::RemoteGraph<T>>(graph_base,
+    vec[V],
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
   RunBFS(graph, graph_base, start_vertex);
 }
 
-TEST_CASE("Large Graph LocalGraph Kcore Decomposition", "[local][long]")
+TEMPLATE_TEST_CASE_SIG("Large Graph LocalGraph Kcore Decomposition",
+  "[local][long]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
   auto [graph_base, k] = GENERATE(KcoreKey{ twitter7_symmetric, 100 });
-  auto graph = CreateGraph(graph_base);
+  auto graph = CreateGraph<famgraph::LocalGraph<T>>(graph_base, vec[V]);
   RunKcore(graph, graph_base, k);
 }
 
-TEST_CASE("Large Graph RemoteGraph Kcore Decomposition", "[rdma][long]")
+TEMPLATE_TEST_CASE_SIG("Large Graph RemoteGraph Kcore Decomposition",
+  "[rdma][long]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   auto [graph_base, k] = GENERATE(KcoreKey{ twitter7_symmetric, 100 });
   int const rdma_channels = 10;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto graph = CreateGraph<famgraph::RemoteGraph<T>>(graph_base,
+    vec[V],
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
   RunKcore(graph, graph_base, k);
 }
 
-TEST_CASE("Large Graph LocalGraph ConnectedComponents", "[local][long]")
+TEMPLATE_TEST_CASE_SIG("Large Graph LocalGraph ConnectedComponents",
+  "[local][long]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
   auto graph_base = GENERATE(twitter7_symmetric);
-  auto graph = CreateGraph(graph_base);
+  auto graph = CreateGraph<famgraph::LocalGraph<T>>(graph_base, vec[V]);
   RunConnectedComponents(graph, graph_base);
 }
 
-TEST_CASE("Large Graph RemoteGraph ConnectedComponents", "[rdma][long]")
+TEMPLATE_TEST_CASE_SIG("Large Graph RemoteGraph ConnectedComponents",
+  "[rdma][long]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   auto graph_base = GENERATE(twitter7_symmetric);
   int const rdma_channels = 10;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto graph = CreateGraph<famgraph::RemoteGraph<T>>(graph_base,
+    vec[V],
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
   RunConnectedComponents(graph, graph_base);
 }
 
-TEST_CASE("Large Graph LocalGraph PageRank", "[local][long]")
+TEMPLATE_TEST_CASE_SIG("Large Graph LocalGraph PageRank",
+  "[local][long]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   tbb::global_control c(tbb::global_control::max_allowed_parallelism, threads);
   auto graph_base = GENERATE(twitter7);
-  auto graph = CreateGraph(graph_base);
+  auto graph = CreateGraph<famgraph::LocalGraph<T>>(graph_base, vec[V]);
   RunPageRank(graph, graph_base);
 }
 
-TEST_CASE("Large Graph RemoteGraph PageRank", "[rdma][long]")
+TEMPLATE_TEST_CASE_SIG("Large Graph RemoteGraph PageRank",
+  "[rdma][long]",
+  ((typename T, int V), T, V),
+  (NopDecompressor, 0),
+  (famgraph::tools::DeltaDecompressor, 1))
 {
   auto graph_base = GENERATE(twitter7);
   int const rdma_channels = 10;
   tbb::global_control c(
     tbb::global_control::max_allowed_parallelism, rdma_channels);
-  auto graph = CreateGraph<famgraph::RemoteGraph<>>(
-    graph_base, memserver_grpc_addr, ipoib_addr, ipoib_port, rdma_channels);
+  auto graph = CreateGraph<famgraph::RemoteGraph<T>>(graph_base,
+    vec[V],
+    memserver_grpc_addr,
+    ipoib_addr,
+    ipoib_port,
+    rdma_channels);
   RunPageRank(graph, graph_base);
 }

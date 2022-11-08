@@ -16,6 +16,7 @@ target_link_libraries(
         TBB::tbb
         FAM
         fgidx
+        codec
         range-v3::range-v3
 )
 target_include_directories(famgraph PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

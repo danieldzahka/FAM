@@ -9,6 +9,7 @@
 #include <FAM.hpp>
 #include <FAM_constants.hpp>
 #include <nop_decompressor.hpp>
+#include <codec.hpp>
 
 #include <oneapi/tbb.h>
 
@@ -300,6 +301,28 @@ public:
   }
 };
 
+template<>
+inline famgraph::EdgeIndexType RemoteGraph<tools::DeltaDecompressor>::Degree(
+  famgraph::VertexLabel v) const noexcept
+{
+  auto interval = this->idx_[v];
+  if (interval.end_exclusive - interval.begin == 0) return 0;
+  auto const channel = tbb::this_task_arena::current_thread_index();
+  [[maybe_unused]] auto const [buffer, unused] =
+    this->GetChannelBuffer(channel);
+  uint32_t constexpr magic = 0xFFFFFFFF;
+  uint32_t volatile *p = reinterpret_cast<uint32_t volatile *>(buffer);
+  *p = magic;
+  auto const l = sizeof(uint32_t);
+  auto const rkey = this->adjacency_array_.rkey;
+  auto const lkey = this->edge_window_.lkey;
+  auto const raddr =
+    this->adjacency_array_.raddr + interval.begin * sizeof(VertexLabel);
+  this->fam_control_->Read(buffer, raddr, l, lkey, rkey, channel);
+  while (*p == magic) {}
+  return *p;
+}
+
 template<typename Decompressor = NopDecompressor> class LocalGraph
 {
   fgidx::DenseIndex idx_;
@@ -368,6 +391,15 @@ public:
     this->EdgeMap(F, is_active, { 0, this->max_v() + 1 });
   }
 };
+
+template<>
+inline famgraph::EdgeIndexType LocalGraph<tools::DeltaDecompressor>::Degree(
+  famgraph::VertexLabel v) const noexcept
+{
+  auto interval = this->idx_[v];
+  if (interval.end_exclusive - interval.begin == 0) return 0;
+  return this->adjacency_array_[interval.begin];
+}
 
 template<typename Vertex, typename AdjancencyGraph> class Graph
 {
